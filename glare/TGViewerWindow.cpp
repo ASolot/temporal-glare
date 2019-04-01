@@ -2,6 +2,7 @@
 #include <QTimer>
 #include <QShortcut>
 
+
 #define _USE_MATH_DEFINES
 #include <math.h>
 
@@ -10,17 +11,33 @@
 
 TGViewerWindow::TGViewerWindow()
 {
-    setWindowTitle(tr("Temporal Glare Renderer"));
-
-	cameraPosLabel = new QLabel();
-    cameraPosLabel->setAlignment(Qt::AlignHCenter);
-
+	setWindowTitle(tr("Temporal Glare Renderer"));
 	TGViewerWidget * tgViewerWidget = new TGViewerWidget(&tgRenderer, this);
 
+	// main layout creation
 	QHBoxLayout *main_layout = new QHBoxLayout;
     main_layout->addWidget(tgViewerWidget,2);
 	QVBoxLayout *controls_layout = new QVBoxLayout;
 	main_layout->addLayout(controls_layout);
+	
+	// image loader layout 
+	QVBoxLayout *image_io_layout = new QVBoxLayout;
+    QLabel *imageLoadLabel = new QLabel(tr("Image I/O"));
+	imageLoadLabel->setAlignment(Qt::AlignLeft);
+	image_io_layout->addWidget(imageLoadLabel);
+	QPushButton *load_exr_button = new QPushButton("Load .exr image", this);
+	image_io_layout->addWidget(load_exr_button);
+	QPushButton *save_png_button = new QPushButton("Save .png image", this);
+	image_io_layout->addWidget(save_png_button);
+	controls_layout->addLayout(image_io_layout);
+
+	// tonemap function layout
+
+	// temporal glare params layout 
+	
+	// Camera position label 
+	cameraPosLabel = new QLabel();
+    cameraPosLabel->setAlignment(Qt::AlignHCenter);
 	controls_layout->addWidget(cameraPosLabel);
 
 	QHBoxLayout *focal_layout = new QHBoxLayout;
@@ -89,6 +106,9 @@ TGViewerWindow::TGViewerWindow()
 	connect(apertureSB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setAperture);
 	connect(fovSB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setFov);
 
+	// connect I/O pushbuttons
+	connect(load_exr_button, SIGNAL (released()), this, SLOT (loadExrFile()));
+
 	// Update labels
 	tgViewerWidget->setKpos(tgViewerWidget->getKpos());
 	tgViewerWidget->setFocal(tgViewerWidget->getFocal());
@@ -116,7 +136,16 @@ void TGViewerWindow::fovUpdated(double fov)
 	focalLengthLabel->setText(label);
 }
 
-void TGViewerWindow::loadTGData(QString lf_dir)
+void TGViewerWindow::loadExrFile()
 {
-	tgRenderer.readTgData(lf_dir.toLocal8Bit());
+	QString fileName = QFileDialog::getOpenFileName(this,
+        tr("Open EXR File"), "",
+        tr("Exr File (*.exr);;All Files (*)"));
+	
+	if (fileName.isEmpty())
+        return;
+	else
+	{
+		tgRenderer.readExrFile(fileName);
+	}
 }

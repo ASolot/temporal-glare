@@ -173,127 +173,85 @@ void TemporalGlareRenderer::calculateAllTransforms()
 
 }
 
-// Read light field array data
-void TemporalGlareRenderer::readTgData(const char *lf_dir)
+// Read exr file data
+void TemporalGlareRenderer::readExrFile(const QString& fileName)
 {
     int rMax = 0;
     int cMax = 0;
 
-    QStringList files = QDir(lf_dir).entryList();
+    // QStringList files = QDir(lf_dir).entryList();
 
-    // Find the size of the camera array
-    for (int i = 0; i < files.size(); i++) {
-        QFileInfo f(files[i]);
-        if (f.suffix() == "png") {
-            int row, col;
-            double camx, camy;
-            char ext[64];
-            int ret = sscanf(files[i].toStdString().c_str(),
-                             "out_%d_%d_%lf_%lf%s", &row, &col, &camy, &camx, ext);
-            if (ret == 5) {
-                rMax = std::max(rMax, row + 1);
-                cMax = std::max(cMax, col + 1);
-            } else {
-                qCritical("ERROR: Invalid File name!");
-                std::abort();
-            }
-        }
-    }
-    nrows = rMax;
-    ncols = cMax;
-	if (nrows < 1 || ncols < 1) {
-		qCritical("ERROR: No light field images found");
-		std::abort();
-	}
+    // // Find the size of the camera array
+    // for (int i = 0; i < files.size(); i++) {
+    //     QFileInfo f(files[i]);
+    //     if (f.suffix() == "png") {
+    //         int row, col;
+    //         double camx, camy;
+    //         char ext[64];
+    //         int ret = sscanf(files[i].toStdString().c_str(),
+    //                          "out_%d_%d_%lf_%lf%s", &row, &col, &camy, &camx, ext);
+    //         if (ret == 5) {
+    //             rMax = std::max(rMax, row + 1);
+    //             cMax = std::max(cMax, col + 1);
+    //         } else {
+    //             qCritical("ERROR: Invalid File name!");
+    //             std::abort();
+    //         }
+    //     }
+    // }
+    // nrows = rMax;
+    // ncols = cMax;
+	// if (nrows < 1 || ncols < 1) {
+	// 	qCritical("ERROR: No light field images found");
+	// 	std::abort();
+	// }
+    //             qDebug() << "loaded";
 
-    std::vector<uint8_t> imageData; 
-    std::vector<QString> valid_files;
-    w_cam.resize(ncols*nrows);
-    K_pos = QVector3D(0.f,0.f,0.f);
-    imgWidth = -1;
-    imgHeight = -1;
-    // Now  get the parameters of each camera from the file name
-    for (int i = 0; i < files.size(); i++) {
-        QFileInfo f(files[i]);
-        if (f.suffix() == "png") {
-            int row, col;
-            double camx, camy;
-            char ext[64];
-            int ret = sscanf(files[i].toStdString().c_str(),
-                             "out_%d_%d_%lf_%lf%s", &row, &col, &camy, &camx, ext);
-
-            if (ret == 5) {
-                int camera_index = col+row*ncols;
-                w_cam[camera_index] = QVector4D(camx,camy,0,1);
-                qDebug( "Camera (c,r)=(%d,%d) at (x,y)=(%g,%g) ", col, row, camx, camy );
-                K_pos += QVector3D(camx,camy,0.f);
-
-                QImage img(QString(lf_dir) + "/" + files[i]);
-                if( imgWidth == -1 ) { // First image loaded
-                    imgWidth = img.width();
-                    imgHeight = img.height();
-
-                    imageData.resize((rMax * cMax) * imgHeight * imgWidth * 4);
-                }
-                assert( imgWidth == img.width() && imgHeight == img.height() ); // All images must be the same
-
-                for (int y = 0; y < imgHeight; y++) {
-                    for (int x = 0; x < imgWidth; x++) {                
-                        const QRgb color = img.pixel(x, y); // For compatibility with older Qt, pixel() instead of pixelColor()
-                        imageData[((camera_index * imgHeight + y) * imgWidth + x) * 4 + 0] = qRed(color);
-                        imageData[((camera_index * imgHeight + y) * imgWidth + x) * 4 + 1] = qGreen(color);
-                        imageData[((camera_index * imgHeight + y) * imgWidth + x) * 4 + 2] = qBlue(color);
-                        imageData[((camera_index * imgHeight + y) * imgWidth + x) * 4 + 3] = 255;
-                    }
-                }
-
-                qDebug() << "loaded";
-
-            } else {
-                qCritical("ERROR: Invalid File name!");
-                std::abort();
-            }
-        }
-    }
-    // Put the virtual camera in the center 
-    K_pos /= (double)w_cam.size();
-    K_pos.setZ(-40.f);
-    K_pos_0 = K_pos;
-    qDebug() << "VCamera" << "at (" << K_pos.x() << ", " << K_pos.y() <<")";
+    //         } else {
+    //             qCritical("ERROR: Invalid File name!");
+    //             std::abort();
+    //         }
+    //     }
+    // }
+    // // Put the virtual camera in the center 
+    // K_pos /= (double)w_cam.size();
+    // K_pos.setZ(-40.f);
+    // K_pos_0 = K_pos;
+    // qDebug() << "VCamera" << "at (" << K_pos.x() << ", " << K_pos.y() <<")";
 
 
-    try {
+    // try {
 
-        lfData = cl::Image3D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-					  // CL_RGBA - because Nvidia does not support RGB, we need to use RGBA
-		              // CL_UNORM_INT8 - pixels should be read with read_imagef. The values will be normalized 0-1
-                      cl::ImageFormat(CL_RGBA, CL_UNORM_INT8), 
-                      imgWidth,
-                      imgHeight,
-                      rMax * cMax,
-                      0,
-                      0,
-                      imageData.data());
+    //     lfData = cl::Image3D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+	// 				  // CL_RGBA - because Nvidia does not support RGB, we need to use RGBA
+	// 	              // CL_UNORM_INT8 - pixels should be read with read_imagef. The values will be normalized 0-1
+    //                   cl::ImageFormat(CL_RGBA, CL_UNORM_INT8), 
+    //                   imgWidth,
+    //                   imgHeight,
+    //                   rMax * cMax,
+    //                   0,
+    //                   0,
+    //                   imageData.data());
 
-        camPos = cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(float)*3*nrows*ncols);
-		apertureTransMats = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(float) * 16);
-		calculateArrayCameraViewTransform();
+    //     camPos = cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(float)*3*nrows*ncols);
+	// 	apertureTransMats = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(float) * 16);
+	// 	calculateArrayCameraViewTransform();
 
-        pixelTransMats = cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(float)*16*nrows*ncols);
-        calculateAllTransforms();
+    //     pixelTransMats = cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(float)*16*nrows*ncols);
+    //     calculateAllTransforms();
 
-        kernel.setArg(0,lfData);
-        kernel.setArg(2,pixelTransMats);
-        kernel.setArg(3,apertureTransMats);
-        kernel.setArg(4,camPos);
-        kernel.setArg(5,apertureSize);
-        kernel.setArg(6,nrows);
-        kernel.setArg(7,ncols);
-    }
-    catch(cl::Error err) {
-        std::cerr << "ERROR: " << err.what() << "(" << getOCLErrorString(err.err()) << ")" << std::endl;
-        exit(1);
-    }
+    //     kernel.setArg(0,lfData);
+    //     kernel.setArg(2,pixelTransMats);
+    //     kernel.setArg(3,apertureTransMats);
+    //     kernel.setArg(4,camPos);
+    //     kernel.setArg(5,apertureSize);
+    //     kernel.setArg(6,nrows);
+    //     kernel.setArg(7,ncols);
+    // }
+    // catch(cl::Error err) {
+    //     std::cerr << "ERROR: " << err.what() << "(" << getOCLErrorString(err.err()) << ")" << std::endl;
+    //     exit(1);
+    // }
 
 }
 

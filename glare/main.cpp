@@ -31,7 +31,6 @@ int main(int argc, char *argv[])
 
     TGViewerWindow window;
     window.show();
-    // window.loadLFData(lf_dir);
     return app.exec();
 
 }

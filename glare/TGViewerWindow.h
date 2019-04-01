@@ -8,6 +8,8 @@
 #include <QWidget>
 #include <QLabel>
 #include <QDoubleSpinBox>
+#include <QPushButton>
+#include <QFileDialog>
 #include "TGViewerWidget.h"
 
 class TGViewerWindow : public QMainWindow
@@ -17,12 +19,11 @@ class TGViewerWindow : public QMainWindow
 public:
     TGViewerWindow();
 
-	void loadTGData(QString TG_dir);
-
 public slots:
 	void KposChanged(QVector3D newKPos);
 	void renderTimeUpdated(int renderTime);
 	void fovUpdated(double fov);
+	void loadExrFile();
 
 private:
     TemporalGlareRenderer tgRenderer;

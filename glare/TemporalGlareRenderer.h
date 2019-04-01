@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QVector3D>
 #include <QMatrix4x4>
+#include <QString>
 
 #define __CL_ENABLE_EXCEPTIONS
 #include <CL/cl.hpp>
@@ -15,7 +16,7 @@ public:
 
 public:
     void paint(QPainter *painter, QPaintEvent *event, int elapsed, const QSize &destSize);
-    void readTgData(const char *lf_dir);
+    void readExrFile(const QString& fileName);
 
     float focus = 500.0f;
     float apertureSize = 8.0f;
