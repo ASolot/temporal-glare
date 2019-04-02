@@ -31,7 +31,55 @@ TGViewerWindow::TGViewerWindow()
 	image_io_layout->addWidget(save_png_button);
 	controls_layout->addLayout(image_io_layout);
 
+	// exposure function layout 
+	QVBoxLayout *exposure_layout = new QVBoxLayout;
+	QLabel *exposureLabel = new QLabel(tr("Exposure mode"));
+	exposureLabel->setAlignment(Qt::AlignLeft);
+	exposure_layout->addWidget(exposureLabel);
+	QStringList commands = {"Auto","Manual"};
+	QComboBox *exposure_combo = new QComboBox(this);
+	exposure_combo->addItems(commands);
+	exposure_layout->addWidget(exposure_combo);
+	controls_layout->addLayout(exposure_layout);
+
 	// tonemap function layout
+	QVBoxLayout *tonemap_layout = new QVBoxLayout;
+	QLabel *tonemapLabel = new QLabel(tr("Tonemapping operator"));
+	tonemapLabel->setAlignment(Qt::AlignLeft);
+	tonemap_layout->addWidget(tonemapLabel);
+
+	QLabel *tonemapOperatorLabel = new QLabel(tr("Reinhard Extended"));
+	tonemapOperatorLabel->setAlignment(Qt::AlignRight);
+	tonemap_layout->addWidget(tonemapOperatorLabel);
+
+	// 1st control
+	QHBoxLayout *tonemap_control1_layout = new QHBoxLayout;
+	QLabel *tonemapControl1Label = new QLabel(tr("Gamma"));
+	tonemapControl1Label->setAlignment(Qt::AlignRight);
+	tonemap_control1_layout->addWidget(tonemapControl1Label);
+	
+	control1SB = new QDoubleSpinBox(this);
+	control1SB->setMinimum(0);
+	control1SB->setMaximum(10);
+	tonemap_control1_layout->addWidget(control1SB);
+
+	tonemap_layout->addLayout(tonemap_control1_layout);
+
+	// 2nd control
+	QHBoxLayout *tonemap_control2_layout = new QHBoxLayout;
+	QLabel *tonemapControl2Label = new QLabel(tr("Lwhite"));
+	tonemapControl2Label->setAlignment(Qt::AlignRight);
+	tonemap_control2_layout->addWidget(tonemapControl2Label);
+	
+	control2SB = new QDoubleSpinBox(this);
+	control2SB->setMinimum(0);
+	control2SB->setMaximum(14);
+	tonemap_control2_layout->addWidget(control2SB);
+
+	tonemap_layout->addLayout(tonemap_control2_layout);
+
+	controls_layout->addLayout(tonemap_layout);
+
 
 	// temporal glare params layout 
 	

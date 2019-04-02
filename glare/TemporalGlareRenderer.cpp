@@ -32,28 +32,28 @@ TemporalGlareRenderer::TemporalGlareRenderer() :
 
 void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int elapsed, const QSize &destSize)
 {
-    if( nrows == 0 ) // No LF data available
+    if( nrows == 0 ) // No HDR image available
         return;
 
     unsigned char* data = NULL;
     try {
         updateViewSize( destSize.width(), destSize.height() );
 
-        calculateAllTransforms();
-		kernel.setArg(2,pixelTransMats);
-        kernel.setArg(3,apertureTransMats);
-        kernel.setArg(5,apertureSize);
-		queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(viewWidth, viewHeight, 1), cl::NullRange);
+        // calculateAllTransforms();
+		// kernel.setArg(2,pixelTransMats);
+        // kernel.setArg(3,apertureTransMats);
+        // kernel.setArg(5,apertureSize);
+		// queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(viewWidth, viewHeight, 1), cl::NullRange);
 
-        // Read Image back and display
+        // // Read Image back and display
+        // data = new unsigned char[viewWidth*viewHeight*4];
+        // cl::size_t<3> origin;
+        // origin[0] = 0; origin[1] = 0, origin[2] = 0;
+        // cl::size_t<3> region;
+        // region[0] = viewWidth; region[1] = viewHeight; region[2] = 1;
+        // queue.enqueueReadImage(vcamImage, CL_TRUE, origin, region, 0, 0 , data,  NULL, NULL);
+        // queue.finish();
         data = new unsigned char[viewWidth*viewHeight*4];
-        cl::size_t<3> origin;
-        origin[0] = 0; origin[1] = 0, origin[2] = 0;
-        cl::size_t<3> region;
-        region[0] = viewWidth; region[1] = viewHeight; region[2] = 1;
-        queue.enqueueReadImage(vcamImage, CL_TRUE, origin, region, 0, 0 , data,  NULL, NULL);
-        queue.finish();
-
         QImage img(data, viewWidth, viewHeight, QImage::Format_RGBA8888);
         painter->drawImage(0, 0, img);        
     } catch(cl::Error err) {
@@ -178,6 +178,7 @@ void TemporalGlareRenderer::readExrFile(const QString& fileName)
 {
     int rMax = 0;
     int cMax = 0;
+    nrows = 1;
 
     // QStringList files = QDir(lf_dir).entryList();
 

@@ -188,3 +188,4 @@ float TGViewerWidget::getFov()
 {
 	return glRenderer->camera_fov;
 }
+

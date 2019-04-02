@@ -10,6 +10,7 @@
 #include <QDoubleSpinBox>
 #include <QPushButton>
 #include <QFileDialog>
+#include <QComboBox>
 #include "TGViewerWidget.h"
 
 class TGViewerWindow : public QMainWindow
@@ -28,7 +29,7 @@ public slots:
 private:
     TemporalGlareRenderer tgRenderer;
 	QLabel *cameraPosLabel;
-	QDoubleSpinBox *apertureSB, *focalSB, *fovSB;
+	QDoubleSpinBox *apertureSB, *focalSB, *fovSB, *control1SB, *control2SB;
     QLabel *renderTimeLabel;
 	QLabel *focalLengthLabel;
 };
