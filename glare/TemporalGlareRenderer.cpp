@@ -30,6 +30,7 @@ TemporalGlareRenderer::TemporalGlareRenderer() :
     initOpenCL();
 }
 
+
 void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int elapsed, const QSize &destSize)
 {
     if( nrows == 0 ) // No HDR image available
@@ -38,6 +39,20 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
     unsigned char* data = NULL;
     try {
         updateViewSize( destSize.width(), destSize.height() );
+
+        // regen after FFT 
+        viennacl::matrix<float> imgR;
+        viennacl::matrix<float> imgG;
+        viennacl::matrix<float> imgB;
+
+
+        viennacl::fft(image->get_rChannelFFT(), imgR, 1.0f);
+        viennacl::fft(image->get_gChannelFFT(), imgG, 1.0f);
+        viennacl::fft(image->get_bChannelFFT(), imgB, 1.0f);
+
+        // Tone-mapping
+
+
 
         // calculateAllTransforms();
 		// kernel.setArg(2,pixelTransMats);
@@ -65,215 +80,147 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
 // Calculate View tranformation matrix for each camera and fill camera position buffer
 void TemporalGlareRenderer::calculateArrayCameraViewTransform()
 {
-    camPosArr.resize(3*nrows*ncols);
-    // View Transformation matrices for array cameras
-    for (int row = 0; row < nrows; row++) {
-        for (int col = 0; col < ncols; col++) {
-            QMatrix4x4 vij; // View matrix for each array camera
-            QVector4D &w_cam_i = w_cam[col+row*ncols];
-			vij = lookAtRH(QVector3D(w_cam_i.x(),w_cam_i.y(),0), QVector3D(w_cam_i.x(),w_cam_i.y(),1), QVector3D(0,1,0));
-            Vi.push_back(vij);
-            camPosArr[(col+row*ncols)*3+0] = (float)w_cam_i.x();
-            camPosArr[(col+row*ncols)*3+1] = (float)w_cam_i.y();
-            camPosArr[(col+row*ncols)*3+2] = 0.0f;
-        }
-    }
-    queue.enqueueWriteBuffer(camPos,CL_TRUE,0,sizeof(float)*3*nrows*ncols,camPosArr.data());
+    // camPosArr.resize(3*nrows*ncols);
+    // // View Transformation matrices for array cameras
+    // for (int row = 0; row < nrows; row++) {
+    //     for (int col = 0; col < ncols; col++) {
+    //         QMatrix4x4 vij; // View matrix for each array camera
+    //         QVector4D &w_cam_i = w_cam[col+row*ncols];
+	// 		vij = lookAtRH(QVector3D(w_cam_i.x(),w_cam_i.y(),0), QVector3D(w_cam_i.x(),w_cam_i.y(),1), QVector3D(0,1,0));
+    //         Vi.push_back(vij);
+    //         camPosArr[(col+row*ncols)*3+0] = (float)w_cam_i.x();
+    //         camPosArr[(col+row*ncols)*3+1] = (float)w_cam_i.y();
+    //         camPosArr[(col+row*ncols)*3+2] = 0.0f;
+    //     }
+    // }
+    // queue.enqueueWriteBuffer(camPos,CL_TRUE,0,sizeof(float)*3*nrows*ncols,camPosArr.data());
 }
 
 void TemporalGlareRenderer::calculateAllTransforms()
 {
-    // Intrinsic camera matrix of data camera
-	float proj_d = tan(camera_fov / 2.f * M_PI / 180.f);
-	QMatrix4x4 Kci (imgWidth/proj_d,  0.0f,           0.0f,  imgWidth/2.0f,
-                    0.0f,           -imgWidth/proj_d,  0.0f,  imgHeight/2.0f,
-                    0.0f,           0.0f,           1.0f,  0.0f,
-                    0.0f,           0.0f,           0.0f,  1.0f);
+    // // Intrinsic camera matrix of data camera
+	// float proj_d = tan(camera_fov / 2.f * M_PI / 180.f);
+	// QMatrix4x4 Kci (imgWidth/proj_d,  0.0f,           0.0f,  imgWidth/2.0f,
+    //                 0.0f,           -imgWidth/proj_d,  0.0f,  imgHeight/2.0f,
+    //                 0.0f,           0.0f,           1.0f,  0.0f,
+    //                 0.0f,           0.0f,           0.0f,  1.0f);
 
-	// Intrinsic camera matrix of the virtual camera
-	QMatrix4x4 KK(viewWidth/proj_d, 0.0f, 0.0f, viewWidth / 2.0f,
-		0.0f, -viewWidth/proj_d, 0.0f, viewHeight / 2.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 0.0f, 0.0f, 1.0f);
-
-
-    QVector3D N_F(0.f,0.f,1.f); // Normal of the focus plane
-    QVector3D w_F(0.f,0.f,focus); // Point of the focus plane
-
-    // Projection matrix for cameras in the array
-	QMatrix4x4 Pc(1.0f,     0.0f,      0.0f,  0.0f,
-                    0.0f, 1.0f,      0.0f,  0.0f,
-                    0.0f,     0.0f,  1.0f,  0.0f,
-                    0.0f,      0.0f,      1.0f,  0.0f);
-
-    QMatrix4x4 Vk;  // View matrix for the virtual camera K	
-	Vk = lookAtRH(K_pos, K_pos + QVector3D(0, 0, 1), QVector3D(0, 1, 0));
+	// // Intrinsic camera matrix of the virtual camera
+	// QMatrix4x4 KK(viewWidth/proj_d, 0.0f, 0.0f, viewWidth / 2.0f,
+	// 	0.0f, -viewWidth/proj_d, 0.0f, viewHeight / 2.0f,
+	// 	0.0f, 0.0f, 1.0f, 0.0f,
+	// 	0.0f, 0.0f, 0.0f, 1.0f);
 
 
-	QMatrix4x4 PcK = Pc;
-    // Specifying focal plane in the virtual camera K coordinates
-	PcK.setRow(2, QVector4D(N_F.x(), N_F.y(), N_F.z(), -QVector3D::dotProduct(N_F, w_F)));
+    // QVector3D N_F(0.f,0.f,1.f); // Normal of the focus plane
+    // QVector3D w_F(0.f,0.f,focus); // Point of the focus plane
 
-	QMatrix4x4 transWK = KK * PcK * Vk;  // From World to Virtual camera K coordinates
+    // // Projection matrix for cameras in the array
+	// QMatrix4x4 Pc(1.0f,     0.0f,      0.0f,  0.0f,
+    //                 0.0f, 1.0f,      0.0f,  0.0f,
+    //                 0.0f,     0.0f,  1.0f,  0.0f,
+    //                 0.0f,      0.0f,      1.0f,  0.0f);
 
-	QMatrix4x4 transKW = transWK.inverted();
+    // QMatrix4x4 Vk;  // View matrix for the virtual camera K	
+	// Vk = lookAtRH(K_pos, K_pos + QVector3D(0, 0, 1), QVector3D(0, 1, 0));
 
-    transMatsVec.resize(16*nrows*ncols);
-    int ndx = 0;
-    for (int i = 0; i < nrows; i++) {
-        for (int j = 0; j < ncols; j++) {
 
-            int cam_index = i*ncols + j;
-            // Transform focal plane equation to the camera array coordinates
-            QMatrix4x4 KI = Vi[cam_index]*Vk.inverted(); // Transformation from the virtual camera to camera array 
-            QMatrix4x4 KIN = QMatrix4x4(KI.normalMatrix());
-            QVector3D N_Ft = KIN*N_F; // Transform K -> Ci camera coordinates
-            QVector3D w_Ft = KI*w_F; // Transform K -> Ci camera coordinates
+	// QMatrix4x4 PcK = Pc;
+    // // Specifying focal plane in the virtual camera K coordinates
+	// PcK.setRow(2, QVector4D(N_F.x(), N_F.y(), N_F.z(), -QVector3D::dotProduct(N_F, w_F)));
 
-            QMatrix4x4 PcI = Pc;	
-			PcI.setRow(2, QVector4D(N_Ft.x(), N_Ft.y(), N_Ft.z(), -QVector3D::dotProduct(N_Ft, Vi[i*ncols + j]*w_Ft)));
-			QMatrix4x4 transWC = Kci * PcI * Vi[cam_index]; // From the world coordinates to the camera-array pixel coordinates
-			QMatrix4x4 transKC = transWC*transKW; 
+	// QMatrix4x4 transWK = KK * PcK * Vk;  // From World to Virtual camera K coordinates
 
-			QMatrix4x4 transWCt = transKC.transposed();
-            for(int k=0;k<16;k++){
-				// Copy the matrix elements in the row-major order
-				transMatsVec[16*ndx+k] = *(transWCt.data()+k);
-            }
-            ndx++;
-        }
-    }
+	// QMatrix4x4 transKW = transWK.inverted();
 
-    // Send data to GPU
-    queue.enqueueWriteBuffer(pixelTransMats,CL_TRUE,0,sizeof(float)*16*nrows*ncols,transMatsVec.data());
+    // transMatsVec.resize(16*nrows*ncols);
+    // int ndx = 0;
+    // for (int i = 0; i < nrows; i++) {
+    //     for (int j = 0; j < ncols; j++) {
 
-	// Aperture transform: from pK to w_A
+    //         int cam_index = i*ncols + j;
+    //         // Transform focal plane equation to the camera array coordinates
+    //         QMatrix4x4 KI = Vi[cam_index]*Vk.inverted(); // Transformation from the virtual camera to camera array 
+    //         QMatrix4x4 KIN = QMatrix4x4(KI.normalMatrix());
+    //         QVector3D N_Ft = KIN*N_F; // Transform K -> Ci camera coordinates
+    //         QVector3D w_Ft = KI*w_F; // Transform K -> Ci camera coordinates
 
-	QVector3D N_A(0.f, 0.f, 1.f); // Normal of the aperture/camera plane
-	QVector3D w_A(0.f, 0.f, 0.f); // Point of the aperture/camera plane
+    //         QMatrix4x4 PcI = Pc;	
+	// 		PcI.setRow(2, QVector4D(N_Ft.x(), N_Ft.y(), N_Ft.z(), -QVector3D::dotProduct(N_Ft, Vi[i*ncols + j]*w_Ft)));
+	// 		QMatrix4x4 transWC = Kci * PcI * Vi[cam_index]; // From the world coordinates to the camera-array pixel coordinates
+	// 		QMatrix4x4 transKC = transWC*transKW; 
+
+	// 		QMatrix4x4 transWCt = transKC.transposed();
+    //         for(int k=0;k<16;k++){
+	// 			// Copy the matrix elements in the row-major order
+	// 			transMatsVec[16*ndx+k] = *(transWCt.data()+k);
+    //         }
+    //         ndx++;
+    //     }
+    // }
+
+    // // Send data to GPU
+    // queue.enqueueWriteBuffer(pixelTransMats,CL_TRUE,0,sizeof(float)*16*nrows*ncols,transMatsVec.data());
+
+	// // Aperture transform: from pK to w_A
+
+	// QVector3D N_A(0.f, 0.f, 1.f); // Normal of the aperture/camera plane
+	// QVector3D w_A(0.f, 0.f, 0.f); // Point of the aperture/camera plane
 	
-	QMatrix4x4 PcA(1.0f, 0.0f, 0.0f, 0.0f,
-		0.0f, 1.0f, 0.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f);
+	// QMatrix4x4 PcA(1.0f, 0.0f, 0.0f, 0.0f,
+	// 	0.0f, 1.0f, 0.0f, 0.0f,
+	// 	0.0f, 0.0f, 1.0f, 0.0f,
+	// 	0.0f, 0.0f, 1.0f, 0.0f);
 
-	QMatrix4x4 transAK = Kci * PcA * Vk; // Transformation from word to virtual camera K pixel coords
-	// Because the aperture plane is in the word and not camera coordinate system, it is the easiest
-	// to set the 3rd row of the matrix to the desired plane equation
-	transAK.setRow(2, QVector4D(N_A.x(), N_A.y(), N_A.z(), -QVector3D::dotProduct(N_A, w_A)) );
+	// QMatrix4x4 transAK = Kci * PcA * Vk; // Transformation from word to virtual camera K pixel coords
+	// // Because the aperture plane is in the word and not camera coordinate system, it is the easiest
+	// // to set the 3rd row of the matrix to the desired plane equation
+	// transAK.setRow(2, QVector4D(N_A.x(), N_A.y(), N_A.z(), -QVector3D::dotProduct(N_A, w_A)) );
 
-	QMatrix4x4 transKAt = transAK.inverted().transposed();
+	// QMatrix4x4 transKAt = transAK.inverted().transposed();
 
-	for (int k = 0; k<16; k++) {
-		// Copy the matrix elements in the row-major order
-		apertureTrans[k] = *(transKAt.data() + k);
-	}
+	// for (int k = 0; k<16; k++) {
+	// 	// Copy the matrix elements in the row-major order
+	// 	apertureTrans[k] = *(transKAt.data() + k);
+	// }
 
-	queue.enqueueWriteBuffer(apertureTransMats, CL_TRUE, 0, sizeof(float) * 16, apertureTrans);
+	// queue.enqueueWriteBuffer(apertureTransMats, CL_TRUE, 0, sizeof(float) * 16, apertureTrans);
 
 }
 
 // Read exr file data
 void TemporalGlareRenderer::readExrFile(const QString& fileName)
 {
-    int rMax = 0;
-    int cMax = 0;
-    nrows = 1;
+    if (image != nullptr)
+    {
+        std::cout << "Flushed previous image \n";
+        delete image;
+    }
 
-    // QStringList files = QDir(lf_dir).entryList();
+    image = new Image(fileName.toUtf8().constData());
 
-    // // Find the size of the camera array
-    // for (int i = 0; i < files.size(); i++) {
-    //     QFileInfo f(files[i]);
-    //     if (f.suffix() == "png") {
-    //         int row, col;
-    //         double camx, camy;
-    //         char ext[64];
-    //         int ret = sscanf(files[i].toStdString().c_str(),
-    //                          "out_%d_%d_%lf_%lf%s", &row, &col, &camy, &camx, ext);
-    //         if (ret == 5) {
-    //             rMax = std::max(rMax, row + 1);
-    //             cMax = std::max(cMax, col + 1);
-    //         } else {
-    //             qCritical("ERROR: Invalid File name!");
-    //             std::abort();
-    //         }
-    //     }
-    // }
-    // nrows = rMax;
-    // ncols = cMax;
-	// if (nrows < 1 || ncols < 1) {
-	// 	qCritical("ERROR: No light field images found");
-	// 	std::abort();
-	// }
-    //             qDebug() << "loaded";
-
-    //         } else {
-    //             qCritical("ERROR: Invalid File name!");
-    //             std::abort();
-    //         }
-    //     }
-    // }
-    // // Put the virtual camera in the center 
-    // K_pos /= (double)w_cam.size();
-    // K_pos.setZ(-40.f);
-    // K_pos_0 = K_pos;
-    // qDebug() << "VCamera" << "at (" << K_pos.x() << ", " << K_pos.y() <<")";
-
-
-    // try {
-
-    //     lfData = cl::Image3D(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-	// 				  // CL_RGBA - because Nvidia does not support RGB, we need to use RGBA
-	// 	              // CL_UNORM_INT8 - pixels should be read with read_imagef. The values will be normalized 0-1
-    //                   cl::ImageFormat(CL_RGBA, CL_UNORM_INT8), 
-    //                   imgWidth,
-    //                   imgHeight,
-    //                   rMax * cMax,
-    //                   0,
-    //                   0,
-    //                   imageData.data());
-
-    //     camPos = cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(float)*3*nrows*ncols);
-	// 	apertureTransMats = cl::Buffer(context, CL_MEM_READ_WRITE, sizeof(float) * 16);
-	// 	calculateArrayCameraViewTransform();
-
-    //     pixelTransMats = cl::Buffer(context,CL_MEM_READ_WRITE,sizeof(float)*16*nrows*ncols);
-    //     calculateAllTransforms();
-
-    //     kernel.setArg(0,lfData);
-    //     kernel.setArg(2,pixelTransMats);
-    //     kernel.setArg(3,apertureTransMats);
-    //     kernel.setArg(4,camPos);
-    //     kernel.setArg(5,apertureSize);
-    //     kernel.setArg(6,nrows);
-    //     kernel.setArg(7,ncols);
-    // }
-    // catch(cl::Error err) {
-    //     std::cerr << "ERROR: " << err.what() << "(" << getOCLErrorString(err.err()) << ")" << std::endl;
-    //     exit(1);
-    // }
+    std::cout << "Image Loaded\n";
 
 }
 
 void TemporalGlareRenderer::updateViewSize(int newWidth, int newHeight)
 {
-    if( newWidth == viewWidth && newHeight == viewHeight )
-        return;
+    // if( newWidth == viewWidth && newHeight == viewHeight )
+    //     return;
     
-    viewWidth = newWidth;
-    viewHeight = newHeight;
+    // viewWidth = newWidth;
+    // viewHeight = newHeight;
 
-    // Output image
-    vcamImage = cl::Image2D(context,
-                CL_MEM_WRITE_ONLY,
-                cl::ImageFormat(CL_RGBA, CL_UNORM_INT8),
-                viewWidth,
-                viewHeight,
-                0,
-                NULL);
+    // // Output image
+    // vcamImage = cl::Image2D(context,
+    //             CL_MEM_WRITE_ONLY,
+    //             cl::ImageFormat(CL_RGBA, CL_UNORM_INT8),
+    //             viewWidth,
+    //             viewHeight,
+    //             0,
+    //             NULL);
                 
-    kernel.setArg(1,vcamImage);
+    // kernel.setArg(1,vcamImage);
 }
 
 
@@ -305,13 +252,23 @@ void TemporalGlareRenderer::initOpenCL()
 
 		cl::Program::Sources sources;
 
+        // Render Kernel ?
 		std::ifstream kernelFile("render.cl");
 		if (kernelFile.fail()) {
-			std::cout << "ERROR: can' read the kernel file\n";
+			std::cout << "ERROR: can't read the render kernel file\n";
 			exit(1);
 		}
 		std::string src(std::istreambuf_iterator<char>(kernelFile), (std::istreambuf_iterator<char>()));
 		sources.push_back(std::make_pair(src.c_str(), src.length()));
+
+        // Tone Map kernel
+        std::ifstream kernelFile2("tonemap_kernels/reinhard_extended.cl");
+		if (kernelFile2.fail()) {
+			std::cout << "ERROR: can't read the tonemap kernel file\n";
+			exit(1);
+		}
+		std::string src2(std::istreambuf_iterator<char>(kernelFile2), (std::istreambuf_iterator<char>()));
+		sources.push_back(std::make_pair(src2.c_str(), src2.length()));
 
         program = cl::Program(context, sources);
 	    try {
@@ -322,6 +279,7 @@ void TemporalGlareRenderer::initOpenCL()
 		}
 		queue = cl::CommandQueue(context, device);
 		kernel = cl::Kernel(program, "lfrender");
+        toneMapperKernel = cl::Kernel(program, "tm_reinhard_extended");
 	}
 	catch(cl::Error err) {
 		std::cerr << "ERROR: " << err.what() << "(" << getOCLErrorString(err.err()) << ")" << std::endl;

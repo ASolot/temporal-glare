@@ -9,6 +9,20 @@
 #define __CL_ENABLE_EXCEPTIONS
 #include <CL/cl.hpp>
 
+#include "image.h"
+
+// // include FFT related routines
+// #ifndef VIENNACL_WITH_OPENCL
+//     #define VIENNACL_WITH_OPENCL
+// #endif
+
+// #include <viennacl/fft.hpp>
+// #include <viennacl/linalg/fft_operations.hpp>
+
+// #include <viennacl/vector.hpp>
+// #include <viennacl/matrix.hpp>
+
+
 class TemporalGlareRenderer
 {
 public:
@@ -39,9 +53,10 @@ private:
     cl::Program program;
     cl::CommandQueue queue;
     cl::Kernel kernel;
+    cl::Kernel toneMapperKernel;
     cl::Image2D vcamImage;
 
-    // Light Field data
+    // Image data
     cl::Image3D lfData;
     int imgWidth;
     int imgHeight;
@@ -49,15 +64,8 @@ private:
     int ncols=0;
     int debug = 0;
 
-    // Tranformation Matrices
-    std::vector<QMatrix4x4> Vi;
-    std::vector<QVector4D> w_cam; // World coordindates of each camera
-	std::vector<float> transMatsVec; // Transformation matrices for all array cameras
-	std::vector<float> camPosArr;
-	float apertureTrans[16];  // Aperture transformations
-    cl::Buffer pixelTransMats;   // Matrix_virtual_camera_pixel_to_camera_[i]_pixel
-    cl::Buffer apertureTransMats; // Matric_virtual_camera_pixel_to_aperture_plane_coordinate
-    cl::Buffer camPos;  // World coordindates of each camera
+    Image *image = nullptr;
+
 };
 
 
