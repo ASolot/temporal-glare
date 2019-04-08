@@ -4,13 +4,13 @@
 #include <QMainWindow>
 
 #include "TemporalGlareRenderer.h"
-
 #include <QWidget>
 #include <QLabel>
 #include <QDoubleSpinBox>
 #include <QPushButton>
 #include <QFileDialog>
 #include <QComboBox>
+#include <QTimer>
 #include "TGViewerWidget.h"
 
 class TGViewerWindow : public QMainWindow

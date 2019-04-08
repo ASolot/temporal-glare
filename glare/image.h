@@ -8,9 +8,9 @@
 #include "vector_types.h"
 
 #include <iostream>
+#include <algorithm>
 
 // include FFT related routines
-// #define VIENNACL_WITH_CUDA
 
 #include <viennacl/fft.hpp>
 #include <viennacl/linalg/fft_operations.hpp>
@@ -26,9 +26,25 @@ public:
     // float4 *getData() { return (float4 *)m_pixels; }
 
 
-    viennacl::matrix<float>& get_rChannelFFT()  { return m_rChannel;}
-    viennacl::matrix<float>& get_gChannelFFT()  { return m_gChannel;}
-    viennacl::matrix<float>& get_bChannelFFT()  { return m_bChannel;}
+    viennacl::matrix<float>& get_rChannelFFT()  { return m_rChannelFFT;}
+    viennacl::matrix<float>& get_gChannelFFT()  { return m_gChannelFFT;}
+    viennacl::matrix<float>& get_bChannelFFT()  { return m_bChannelFFT;}
+
+    // cv::Mat get_imgData() {return channels;}
+
+    static void fromLayersToRGBA(unsigned char* data,
+                        viennacl::matrix<float>& red,
+                        viennacl::matrix<float>& green,
+                        viennacl::matrix<float>& blue, 
+                        int width,
+                        int height);
+
+    static void fromLayersToRGBAf(float* data,
+                        viennacl::matrix<float>& red,
+                        viennacl::matrix<float>& green,
+                        viennacl::matrix<float>& blue, 
+                        int width,
+                        int height);
 
     inline float3 getAverageIntensity() const { return {m_averageIntensity_r, m_averageIntensity_g, m_averageIntensity_b}; }
     inline float getMinimumLuminance() const { return m_minimumLuminance; }
@@ -64,6 +80,8 @@ private:
     float m_averageLuminance;
     float m_logAverageLuminance;
     float m_autoKeyValue;
+
+    
 };
 
 #endif // IMAGE_H

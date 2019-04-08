@@ -1,10 +1,12 @@
 #ifndef GLWIDGET_H
 #define GLWIDGET_H
 
+#include <GL/glew.h>
 #include <QOpenGLWidget>
 #include <QKeyEvent>
 #include "TemporalGlareRenderer.h"
 #include <QLabel>
+#include <QTimer>
 
 class TGViewerWidget : public QOpenGLWidget
 {
@@ -19,6 +21,7 @@ public:
 
 public slots:
     void animate();
+	void refresh();
 	
 	void setKpos(QVector3D newK_pos);  // Set a new position of the virtual camera
 	void setFocal(double newFocus);  // Set a new focus distance for the virtual camera
@@ -52,6 +55,8 @@ private:
 	QVector3D mouseDragStartK_pos;
 	Qt::MouseButton mouseDragButton;
 	double mouseDragFocal;
+
+	QTimer timer;
 };
 
 #endif // GLWIDGET_H

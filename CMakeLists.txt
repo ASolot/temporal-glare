@@ -13,7 +13,12 @@ if(NOT Qt5Widgets_FOUND)
       MESSAGE( SEND_ERROR "Qt5 library not found." )
 endif(NOT Qt5Widgets_FOUND)
 
-include_directories ("${PROJECT_SOURCE_DIR}/../include" ${OpenCL_INCLUDE_DIRS})
+find_package(OpenGL)
+if(NOT OpenGL_FOUND)
+      MESSAGE( SEND_ERROR "OpenGL library not found." )
+endif(NOT OpenGL_FOUND)
+
+include_directories ("${PROJECT_SOURCE_DIR}/../include" ${OpenCL_INCLUDE_DIRS} ${OPENGL_LIBRARIES})
 
 add_subdirectory (glare)
 

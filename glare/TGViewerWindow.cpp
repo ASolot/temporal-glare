@@ -139,8 +139,13 @@ TGViewerWindow::TGViewerWindow()
 	QShortcut *quit_shortcut = new QShortcut(QKeySequence(tr("Ctrl+Q", "Quit")), this );
 	connect(quit_shortcut, &QShortcut::activated, this, &TGViewerWindow::close);
 
-
     tgViewerWidget->setFocus();
+
+	// TODO: add refresh function
+
+	// QTimer *timer = new QTimer;
+	// connect(timer, &QTimer::timeout, this, SLOT (tgViewerWidget->refresh()));
+	// timer->start(50);
 
 	connect(tgViewerWidget, &TGViewerWidget::KposChanged, this, &TGViewerWindow::KposChanged);
 	connect(tgViewerWidget, &TGViewerWidget::focalChanged, focalSB, &QDoubleSpinBox::setValue);
@@ -162,6 +167,8 @@ TGViewerWindow::TGViewerWindow()
 	tgViewerWidget->setFocal(tgViewerWidget->getFocal());
 	tgViewerWidget->setAperture(tgViewerWidget->getAperture());
 	tgViewerWidget->setFov(tgViewerWidget->getFov());
+
+
 }
 
 void TGViewerWindow::KposChanged(QVector3D newKpos)
@@ -172,7 +179,7 @@ void TGViewerWindow::KposChanged(QVector3D newKpos)
 
 void TGViewerWindow::renderTimeUpdated(int renderTime)
 {
-	QString label = QString("Rendering time %1 ms").arg(QString::number(renderTime));
+	QString label = QString("Rendering time %1 ms - %2 fps").arg(QString::number(renderTime), QString::number(1000/(renderTime+0.1)));
 	renderTimeLabel->setText(label);
 }
 
