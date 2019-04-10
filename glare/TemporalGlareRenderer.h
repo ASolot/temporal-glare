@@ -14,6 +14,8 @@
 
 #include <time.h>
 
+#include <clFFT/clFFT.h>
+
 // // include FFT related routines
 // #ifndef VIENNACL_WITH_OPENCL
 //     #define VIENNACL_WITH_OPENCL
@@ -38,8 +40,6 @@ public:
 
     float focus = 500.0f;
     float apertureSize = 8.0f;
-    QVector3D K_pos; // Camera position
-    QVector3D K_pos_0; // Initial cmera position
 	int viewWidth, viewHeight; // Resolution of the rendered image in pixels
 
 	float camera_fov = 90.f;
@@ -55,7 +55,6 @@ private:
 
     // OpenCL stuff 
     void initOpenCL();
-    void calculateArrayCameraViewTransform();
 
     cl::Platform platform;
     cl::Device device;
@@ -66,12 +65,13 @@ private:
     cl::Kernel kernel;
     cl::Kernel toneMapperKernel;
     cl::Kernel floatToUintRBGAKernel;
+    cl::Kernel mergeKernel;
     cl::Kernel gratingsKernel;
     cl::Kernel lensDotsKernel;
     cl::Kernel pupilKernel;
     cl::Kernel compExpKernel;
     cl::Kernel compExpMultKernel;
-
+    cl::Kernel spectralBlurKernel;
 
     // Image data
     int m_imgWidth;
@@ -82,11 +82,6 @@ private:
     int nrows=0;
     int ncols=0;
     int debug = 0;
-
-    // render output images
-    viennacl::matrix<float> imgR;
-    viennacl::matrix<float> imgG;
-    viennacl::matrix<float> imgB;
 
     Image *image = nullptr;
 
@@ -106,6 +101,7 @@ private:
     unsigned char* m_slidTexture;
     int m_slidWidth;
     int m_slidHeight;
+    float m_slidRadiusPx;
 
     //lens particles
     float* m_pointCoordinates; //x, alphadx, y, alphady
@@ -116,9 +112,12 @@ private:
 
     //complex exponential
     float* m_complexExponential;
+    float* m_complexAperture;
     float m_lambda;
     float m_distance;
 
+    clfftSetupData fftSetup;
+    clfftPlanHandle planHandle;
 };
 
 

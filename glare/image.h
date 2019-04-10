@@ -21,7 +21,7 @@
 class Image {
 public:
     explicit Image(const std::string &filename);
-    ~Image() {}
+    ~Image();
 
     // float4 *getData() { return (float4 *)m_pixels; }
 
@@ -60,13 +60,17 @@ public:
 
 private:
     
-    viennacl::matrix<float> m_rChannel;
-    viennacl::matrix<float> m_gChannel;
-    viennacl::matrix<float> m_bChannel;
+    // viennacl::matrix<float> m_rChannel;
+    // viennacl::matrix<float> m_gChannel;
+    // viennacl::matrix<float> m_bChannel;
 
-    viennacl::matrix<float> m_rChannelFFT;
-    viennacl::matrix<float> m_gChannelFFT;
-    viennacl::matrix<float> m_bChannelFFT;
+    // viennacl::matrix<float> m_rChannelFFT;
+    // viennacl::matrix<float> m_gChannelFFT;
+    // viennacl::matrix<float> m_bChannelFFT;
+
+    float* m_red;
+    float* m_green;
+    float* m_blue;
 
 
     int m_width;

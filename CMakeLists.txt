@@ -18,6 +18,7 @@ if(NOT OpenGL_FOUND)
       MESSAGE( SEND_ERROR "OpenGL library not found." )
 endif(NOT OpenGL_FOUND)
 
+
 include_directories ("${PROJECT_SOURCE_DIR}/../include" ${OpenCL_INCLUDE_DIRS} ${OPENGL_LIBRARIES})
 
 add_subdirectory (glare)

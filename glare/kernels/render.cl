@@ -35,14 +35,16 @@ __kernel void glr_render_gratings(__read_only image2d_t inputImage,
         write_imageui(outputImage, pos, color);
     }
     else
+    {
         write_imageui(outputImage, pos, whiteColor);
+    }
 }
 
 
 // we distort the original points coordinates based on 
 // the variation of the lens size
 __kernel void glr_render_lens_points(__global const float* points, 
-                                     __write_only image2d_t outputImage, 
+                                     __global unsigned char* outputImage, 
                                      int width, 
                                      int height, 
                                      float distort )
@@ -56,23 +58,41 @@ __kernel void glr_render_lens_points(__global const float* points,
     float ynew = points[index+2] - distort * points[index+3];
     ynew = ynew * height/2.0f + height/2.0f;
 
-    int2 pos; 
+    int pos; 
 
     int i, j;
     for(i = -1; i <=1; i++)
         for(j = -1; j<=1; j++)
         {
-            pos = (int2){(int)(xnew+i), (int)(ynew+j)};
-            write_imageui(outputImage, pos, whiteColor);
+            pos = (int)(xnew+i) * width + (int)(ynew+j);
+            if(pos < width*height)
+            {
+                pos*=4;
+                
+                outputImage[pos] = 0;
+                outputImage[pos+1] = 0;
+                outputImage[pos+2] = 0;
+                outputImage[pos+3] = 255;
+            }
+            
         }
 }
 
-// merge images 
-// __kernel void glr_merge_images(__read_only image2d_t inputImage1,
-//                                 __read_only image2d_t inputImage2,
-//                                 __read_only image2d_t inputImage3,
-//                                 __write_only image2d_t outputImage)
-// {
-//     const int2 pos = {get_global_id(0), get_global_id(1)}; 
+// merge images -> better implement alpha blending
+__kernel void glr_merge_images(__read_only image2d_t inputImage1,
+                                __read_only image2d_t inputImage2,
+                                __read_only image2d_t inputImage3,
+                                __write_only image2d_t outputImage)
+{
+    const int2 pos = {get_global_id(0), get_global_id(1)}; 
+    uint4 color1 = read_imageui(inputImage1, sampler, pos);
+    uint4 color2 = read_imageui(inputImage2, sampler, pos);
+    uint4 color3 = read_imageui(inputImage3, sampler, pos);
+    uint4 color  = color1; // by default, we get the slids
+
+    if(color3.x == 0 || color2.x == 0)
+        color = blackColor;
     
-// }
+    write_imageui(outputImage, pos, color);
+
+}

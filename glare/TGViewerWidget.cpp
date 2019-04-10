@@ -21,8 +21,8 @@ TGViewerWidget::TGViewerWidget(TemporalGlareRenderer *renderer, QWidget *parent)
     setAutoFillBackground(false);
 		setFocusPolicy(Qt::StrongFocus);
 
-		// connect(&timer, SIGNAL(timeout()), this, SLOT(update()));
-		// timer.start(1000);
+		connect(&timer, SIGNAL(timeout()), this, SLOT(update()));
+		timer.start(1000);
 }
 
 QSize TGViewerWidget::sizeHint() const
