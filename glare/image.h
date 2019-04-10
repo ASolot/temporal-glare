@@ -12,11 +12,11 @@
 
 // include FFT related routines
 
-#include <viennacl/fft.hpp>
-#include <viennacl/linalg/fft_operations.hpp>
+// #include <viennacl/fft.hpp>
+// #include <viennacl/linalg/fft_operations.hpp>
 
-#include <viennacl/vector.hpp>
-#include <viennacl/matrix.hpp>
+// #include <viennacl/vector.hpp>
+// #include <viennacl/matrix.hpp>
 
 class Image {
 public:
@@ -26,23 +26,41 @@ public:
     // float4 *getData() { return (float4 *)m_pixels; }
 
 
-    viennacl::matrix<float>& get_rChannelFFT()  { return m_rChannelFFT;}
-    viennacl::matrix<float>& get_gChannelFFT()  { return m_gChannelFFT;}
-    viennacl::matrix<float>& get_bChannelFFT()  { return m_bChannelFFT;}
+    // float* get_rChannelFFT()  { return m_redFFT;}
+    // float* get_gChannelFFT()  { return m_greenFFT;}
+    // float* get_bChannelFFT()  { return m_blueFFT;}
+
+    float* get_rChannel()  { return m_red;}
+    float* get_gChannel()  { return m_green;}
+    float* get_bChannel()  { return m_blue;}
 
     // cv::Mat get_imgData() {return channels;}
 
+    // static void fromLayersToRGBA(unsigned char* data,
+    //                     viennacl::matrix<float>& red,
+    //                     viennacl::matrix<float>& green,
+    //                     viennacl::matrix<float>& blue, 
+    //                     int width,
+    //                     int height);
+
+    // static void fromLayersToRGBAf(float* data,
+    //                     viennacl::matrix<float>& red,
+    //                     viennacl::matrix<float>& green,
+    //                     viennacl::matrix<float>& blue, 
+    //                     int width,
+    //                     int height);
+
     static void fromLayersToRGBA(unsigned char* data,
-                        viennacl::matrix<float>& red,
-                        viennacl::matrix<float>& green,
-                        viennacl::matrix<float>& blue, 
+                        float* red,
+                        float* green,
+                        float* blue, 
                         int width,
                         int height);
 
     static void fromLayersToRGBAf(float* data,
-                        viennacl::matrix<float>& red,
-                        viennacl::matrix<float>& green,
-                        viennacl::matrix<float>& blue, 
+                        float* red,
+                        float* green,
+                        float* blue, 
                         int width,
                         int height);
 
@@ -72,6 +90,9 @@ private:
     float* m_green;
     float* m_blue;
 
+    // float* m_redFFT;
+    // float* m_greenFFT;
+    // float* m_blueFFT;
 
     int m_width;
     int m_height;

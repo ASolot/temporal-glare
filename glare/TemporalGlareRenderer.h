@@ -16,18 +16,6 @@
 
 #include <clFFT/clFFT.h>
 
-// // include FFT related routines
-// #ifndef VIENNACL_WITH_OPENCL
-//     #define VIENNACL_WITH_OPENCL
-// #endif
-
-// #include <viennacl/fft.hpp>
-// #include <viennacl/linalg/fft_operations.hpp>
-
-// #include <viennacl/vector.hpp>
-// #include <viennacl/matrix.hpp>
-
-
 class TemporalGlareRenderer
 {
 public:
@@ -118,6 +106,10 @@ private:
 
     clfftSetupData fftSetup;
     clfftPlanHandle planHandle;
+
+    float* m_ImgRedFFT;
+    float* m_ImgGreenFFT;
+    float* m_ImgBlueFFT;
 };
 
 

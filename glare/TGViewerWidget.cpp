@@ -37,7 +37,7 @@ void TGViewerWidget::animate()
 
 void TGViewerWidget::setKpos(QVector3D newK_pos)
 {
-	glRenderer->K_pos = newK_pos;
+	// glRenderer->K_pos = newK_pos;
 	update();
 	emit KposChanged(newK_pos);
 }
@@ -126,37 +126,37 @@ void TGViewerWidget::paintEvent(QPaintEvent *event)
 
 void TGViewerWidget::keyPressEvent(QKeyEvent *event)
 {
-	QVector3D K_pos = getKpos();
+	// QVector3D K_pos = getKpos();
 	float focus = getFocal();
 
 	const float posStep = .5f;
 	const float focusStep = 10.f;
 	const float apertureStep = 1.f;
 	const float cameraFovStep = 1.f;
-	if(event->key() == Qt::Key_A) {
-		K_pos.setX(K_pos.x() - posStep);
-		setKpos(K_pos);
-    }
-	if (event->key() == Qt::Key_D) {
-		K_pos.setX(K_pos.x() + posStep);
-		setKpos(K_pos);
-	}
-    if(event->key() == Qt::Key_W){
-		K_pos.setY(K_pos.y() + posStep);
-		setKpos(K_pos);
-    }
-    if(event->key() == Qt::Key_S){
-		K_pos.setY(K_pos.y() - posStep);
-		setKpos(K_pos);
-	}
-    if(event->key() == Qt::Key_Q){
-		K_pos.setZ(K_pos.z() - posStep);
-		setKpos(K_pos);
-    }
-    if(event->key() == Qt::Key_E){
-		K_pos.setZ(K_pos.z() + posStep);
-		setKpos(K_pos);
-    }
+	// if(event->key() == Qt::Key_A) {
+	// 	K_pos.setX(K_pos.x() - posStep);
+	// 	setKpos(K_pos);
+  //   }
+	// if (event->key() == Qt::Key_D) {
+	// 	K_pos.setX(K_pos.x() + posStep);
+	// 	setKpos(K_pos);
+	// }
+  //   if(event->key() == Qt::Key_W){
+	// 	K_pos.setY(K_pos.y() + posStep);
+	// 	setKpos(K_pos);
+  //   }
+  //   if(event->key() == Qt::Key_S){
+	// 	K_pos.setY(K_pos.y() - posStep);
+	// 	setKpos(K_pos);
+	// }
+  //   if(event->key() == Qt::Key_Q){
+	// 	K_pos.setZ(K_pos.z() - posStep);
+	// 	setKpos(K_pos);
+  //   }
+  //   if(event->key() == Qt::Key_E){
+	// 	K_pos.setZ(K_pos.z() + posStep);
+	// 	setKpos(K_pos);
+  //   }
     if(event->key() == Qt::Key_Left){
 		setAperture(getAperture() - apertureStep);
     }
@@ -181,7 +181,7 @@ void TGViewerWidget::keyPressEvent(QKeyEvent *event)
 void TGViewerWidget::mousePressEvent(QMouseEvent * event)
 {
 	mouseDragStart = event->pos();
-	mouseDragStartK_pos = glRenderer->K_pos;
+	// mouseDragStartK_pos = glRenderer->K_pos;
 	mouseDragFocal = glRenderer->focus;
 	mouseDragButton = event->button();
 	event->accept();
@@ -195,16 +195,16 @@ void TGViewerWidget::mouseMoveEvent(QMouseEvent * event)
 		float new_focal = mouseDragFocal - (float)delta.y() / 2.f;
 		setFocal(std::min(std::max(new_focal, LF_min_focal), LF_max_focal));
 	}
-	else {
-		QVector3D newK_pos;
-		if (event->modifiers() == Qt::ShiftModifier) {
-			newK_pos = mouseDragStartK_pos + QVector3D(delta.x(), delta.y(), 0.f) / 2.f;
-		}
-		else {
-			newK_pos = mouseDragStartK_pos + QVector3D(delta.x(), 0.f, -delta.y()) / 2.f;
-		}
-		setKpos(newK_pos);
-	}
+	// else {
+	// 	QVector3D newK_pos;
+	// 	if (event->modifiers() == Qt::ShiftModifier) {
+	// 		newK_pos = mouseDragStartK_pos + QVector3D(delta.x(), delta.y(), 0.f) / 2.f;
+	// 	}
+	// 	else {
+	// 		newK_pos = mouseDragStartK_pos + QVector3D(delta.x(), 0.f, -delta.y()) / 2.f;
+	// 	}
+	// 	setKpos(newK_pos);
+	// }
 	event->accept();
 }
 
@@ -220,10 +220,11 @@ void TGViewerWidget::wheelEvent(QWheelEvent * event)
 	event->accept();	
 }
 
-QVector3D TGViewerWidget::getKpos()
-{
-	return glRenderer->K_pos;
-}
+// QVector3D TGViewerWidget::getKpos()
+// {
+// 	// return glRenderer->K_pos;
+// 	return NULL;
+// }
 
 float TGViewerWidget::getFocal()
 {

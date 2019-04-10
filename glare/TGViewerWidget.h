@@ -52,7 +52,6 @@ private:
     TemporalGlareRenderer *glRenderer;
     int elapsed;
 	QPoint mouseDragStart;
-	QVector3D mouseDragStartK_pos;
 	Qt::MouseButton mouseDragButton;
 	double mouseDragFocal;
 

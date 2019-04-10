@@ -10,23 +10,20 @@
 
 #include "TemporalGlareRenderer.h"
 
+// #ifndef VIENNACL_WITH_OPENCL
+//   #define VIENNACL_WITH_OPENCL
+// #endif
 
 
+// #include <viennacl/ocl/backend.hpp>
+// #include <viennacl/vector.hpp>
+// #include <viennacl/matrix.hpp>
+// #include <viennacl/linalg/matrix_operations.hpp>
+// #include <viennacl/linalg/norm_2.hpp>
+// #include <viennacl/linalg/prod.hpp>
 
-#ifndef VIENNACL_WITH_OPENCL
-  #define VIENNACL_WITH_OPENCL
-#endif
-
-
-#include <viennacl/ocl/backend.hpp>
-#include <viennacl/vector.hpp>
-#include <viennacl/matrix.hpp>
-#include <viennacl/linalg/matrix_operations.hpp>
-#include <viennacl/linalg/norm_2.hpp>
-#include <viennacl/linalg/prod.hpp>
-
-#include <viennacl/fft.hpp>
-#include <viennacl/linalg/fft_operations.hpp>
+// #include <viennacl/fft.hpp>
+// #include <viennacl/linalg/fft_operations.hpp>
 
 #include "ocl_utils.hpp"
 
@@ -390,6 +387,9 @@ void TemporalGlareRenderer::readExrFile(const QString& fileName)
     {
         std::cout << "Flushed previous image \n";
         delete image;
+        delete[] m_ImgRedFFT;
+        delete[] m_ImgBlueFFT;
+        delete[] m_ImgGreenFFT;
     }
 
     image = new Image(fileName.toUtf8().constData());
@@ -481,11 +481,11 @@ void TemporalGlareRenderer::initOpenCL()
 
         // make viennacl get along with our business
         // http://viennacl.sourceforge.net/doc/manual-custom-contexts.html
-        viennacl::ocl::setup_context(0, context(), device(), queue());
-        viennacl::ocl::switch_context(0);
+        // viennacl::ocl::setup_context(0, context(), device(), queue());
+        // viennacl::ocl::switch_context(0);
 
         std::cout << "Existing context: " << context() << std::endl;
-        std::cout << "ViennaCL uses context: " << viennacl::ocl::current_context().handle().get() << std::endl;
+        // std::cout << "ViennaCL uses context: " << viennacl::ocl::current_context().handle().get() << std::endl;
 		
 		// kernel = cl::Kernel(program, "lfrender");
         toneMapperKernel = cl::Kernel(program, "tm_reinhard_extended");
@@ -555,6 +555,64 @@ void TemporalGlareRenderer::initTextures()
 
         p+=4;
     }
+
+    m_ImgRedFFT = new float[m_imgWidth * m_imgHeight*2];
+    m_ImgGreenFFT = new float[m_imgWidth * m_imgHeight*2];
+    m_ImgBlueFFT = new float[m_imgWidth * m_imgHeight*2];
+
+    // compute the FFTs 
+
+    cl::Buffer redChannel(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
+    cl::Buffer greenChannel(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
+    cl::Buffer blueChannel(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
+
+    cl::Buffer redChannelFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+    cl::Buffer greenChannelFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+    cl::Buffer blueChannelFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+
+    queue.enqueueWriteBuffer(redChannel, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, image->get_rChannel());
+    queue.enqueueWriteBuffer(greenChannel, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, image->get_gChannel());
+    queue.enqueueWriteBuffer(blueChannel, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, image->get_bChannel());
+    queue.finish();
+
+    clfftDestroyPlan( &planHandle );
+
+    size_t clLengths[2] = {m_imgWidth, m_imgHeight};
+    clfftCreateDefaultPlan(&planHandle, context(), CLFFT_2D, clLengths);
+    clfftSetPlanPrecision(planHandle, CLFFT_SINGLE);
+    clfftSetLayout(planHandle, CLFFT_REAL, CLFFT_COMPLEX_INTERLEAVED);
+    clfftSetResultLocation(planHandle, CLFFT_OUTOFPLACE);
+
+    clfftBakePlan(planHandle, 1, &queue(), NULL, NULL);
+
+    // red channel FFT
+    clfftEnqueueTransform(planHandle, CLFFT_FORWARD, 1, &queue(), 0, NULL, NULL, &redChannel(), &redChannelFFT(), NULL);
+    clFinish(queue());
+
+    queue.enqueueReadBuffer(redChannelFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight * 2, m_ImgRedFFT);
+    queue.finish();
+
+
+    // green channel FFT
+    clfftEnqueueTransform(planHandle, CLFFT_FORWARD, 1, &queue(), 0, NULL, NULL, &greenChannel(), &greenChannelFFT(), NULL);
+    clFinish(queue());
+
+    queue.enqueueReadBuffer(greenChannelFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight * 2, m_ImgGreenFFT);
+    queue.finish();
+
+
+    // blue channel FFT
+    clfftEnqueueTransform(planHandle, CLFFT_FORWARD, 1, &queue(), 0, NULL, NULL, &blueChannel(), &blueChannelFFT(), NULL);
+    clFinish(queue());
+
+    queue.enqueueReadBuffer(blueChannelFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight * 2, m_ImgBlueFFT);
+    queue.finish();
+
+    // discard the rest
+    clfftDestroyPlan( &planHandle );
+
+    std::cout<<"Textures updated!\n";
+
 }
 
 float TemporalGlareRenderer::noise()
@@ -593,6 +651,10 @@ TemporalGlareRenderer::~TemporalGlareRenderer()
     delete[] m_complexExponential;
     delete[] m_slidTexture;
     delete[] m_pointCoordinates;
+
+    delete[] m_ImgRedFFT;
+    delete[] m_ImgGreenFFT;
+    delete[] m_ImgBlueFFT;
 
     clfftDestroyPlan( &planHandle );
     clfftTeardown();

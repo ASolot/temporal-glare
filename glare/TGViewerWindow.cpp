@@ -163,7 +163,7 @@ TGViewerWindow::TGViewerWindow()
 	connect(load_exr_button, SIGNAL (released()), this, SLOT (loadExrFile()));
 
 	// Update labels
-	tgViewerWidget->setKpos(tgViewerWidget->getKpos());
+	// tgViewerWidget->setKpos(tgViewerWidget->getKpos());
 	tgViewerWidget->setFocal(tgViewerWidget->getFocal());
 	tgViewerWidget->setAperture(tgViewerWidget->getAperture());
 	tgViewerWidget->setFov(tgViewerWidget->getFov());

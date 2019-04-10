@@ -73,7 +73,7 @@ Image::Image(const std::string &filename) {
                 rgb = convert(img.images[0], index, img.pixel_types[0]);
                 m_red[index]   = rgb;
                 m_green[index] = rgb;
-                blue[index]  = rgb;
+                m_blue[index]  = rgb;
             }
             else {
                 m_red[index]      = convert(img.images[idxR], index, img.pixel_types[idxR]);
@@ -126,6 +126,7 @@ Image::Image(const std::string &filename) {
     // viennacl::fft(m_rChannel, m_rChannelFFT, -1.0f);
     // viennacl::fft(m_gChannel, m_gChannelFFT, -1.0f);
     // viennacl::fft(m_bChannel, m_bChannelFFT, -1.0f);
+    
 }
 
 inline float clamp(float x, float a, float b)
@@ -133,83 +134,134 @@ inline float clamp(float x, float a, float b)
     return x < a ? a : (x > b ? b : x);
 }
 
+// void Image::fromLayersToRGBA(unsigned char* data,
+//                         viennacl::matrix<float>& red,
+//                         viennacl::matrix<float>& green,
+//                         viennacl::matrix<float>& blue,
+//                         int width,
+//                         int height)
+// {
+//     if(red.size1() != green.size1() || green.size1() != blue.size1() || blue.size1() != red.size1())
+//     {
+//         // assert smth bad
+//         std::cout << "BAD";
+//         return;
+//     }
+
+//     if(red.size2() != green.size2() || green.size2() != blue.size2() || blue.size2() != red.size2())
+//     {
+//         // assert smth bad
+//         std::cout << "BAD";
+//         return;
+//     }
+
+//     int pixels = width * height;
+//     int maxIndex = width * height * 4;
+//     int currentIndex = 0;
+//     unsigned char* p = data;
+
+//     for (int i = 0; i < height; ++i) {
+//         for (int j = 0; j < width && currentIndex < maxIndex; ++j) 
+//         {
+//             p[0] = (unsigned char)(clamp(red(i,j)*255/pixels, 0, 255));
+//             p[1] = (unsigned char)(clamp(green(i,j)*255/pixels, 0, 255));
+//             p[2] = (unsigned char)(clamp(blue(i,j)*255/pixels, 0, 255));
+//             p[3] = 255;
+
+//             currentIndex+=4;
+//             p+=4;
+//         }
+//     }
+// }
+
+// void Image::fromLayersToRGBAf(float* data,
+//                         viennacl::matrix<float>& red,
+//                         viennacl::matrix<float>& green,
+//                         viennacl::matrix<float>& blue,
+//                         int width,
+//                         int height)
+// {
+//     if(red.size1() != green.size1() || green.size1() != blue.size1() || blue.size1() != red.size1())
+//     {
+//         // assert smth bad
+//         std::cout << "BAD";
+//         return;
+//     }
+
+//     if(red.size2() != green.size2() || green.size2() != blue.size2() || blue.size2() != red.size2())
+//     {
+//         // assert smth bad
+//         std::cout << "BAD";
+//         return;
+//     }
+
+//     float pixels = width * height;
+//     int maxIndex = width * height * 4;
+//     int currentIndex = 0;
+//     float* p = data;
+
+//     for (int i = 0; i < height; ++i) {
+//         for (int j = 0; j < width && currentIndex < maxIndex; ++j) 
+//         {
+//             p[0] = clamp(red(i,j)/pixels, 0.0f, 1.0f);
+//             p[1] = clamp(green(i,j)/pixels, 0.0f, 1.0f);
+//             p[2] = clamp(blue(i,j)/pixels, 0.0f, 1.0f);
+//             p[3] = 1.0f;
+
+//             currentIndex+=4;
+//             p+=4;
+//         }
+//     }
+
+
+
+// }
+
 void Image::fromLayersToRGBA(unsigned char* data,
-                        viennacl::matrix<float>& red,
-                        viennacl::matrix<float>& green,
-                        viennacl::matrix<float>& blue,
+                        float* red,
+                        float* green,
+                        float* blue, 
                         int width,
                         int height)
 {
-    if(red.size1() != green.size1() || green.size1() != blue.size1() || blue.size1() != red.size1())
-    {
-        // assert smth bad
-        std::cout << "BAD";
-        return;
-    }
-
-    if(red.size2() != green.size2() || green.size2() != blue.size2() || blue.size2() != red.size2())
-    {
-        // assert smth bad
-        std::cout << "BAD";
-        return;
-    }
-
     int pixels = width * height;
     int maxIndex = width * height * 4;
     int currentIndex = 0;
     unsigned char* p = data;
 
-    for (int i = 0; i < height; ++i) {
-        for (int j = 0; j < width && currentIndex < maxIndex; ++j) 
-        {
-            p[0] = (unsigned char)(clamp(red(i,j)*255/pixels, 0, 255));
-            p[1] = (unsigned char)(clamp(green(i,j)*255/pixels, 0, 255));
-            p[2] = (unsigned char)(clamp(blue(i,j)*255/pixels, 0, 255));
+    for (int i = 0; i < pixels; ++i) 
+    {
+            p[0] = (unsigned char)(clamp(red[i]  * 255, 0, 255));
+            p[1] = (unsigned char)(clamp(green[i]* 255, 0, 255));
+            p[2] = (unsigned char)(clamp(blue[i] * 255, 0, 255));
             p[3] = 255;
 
             currentIndex+=4;
             p+=4;
-        }
     }
 }
 
 void Image::fromLayersToRGBAf(float* data,
-                        viennacl::matrix<float>& red,
-                        viennacl::matrix<float>& green,
-                        viennacl::matrix<float>& blue,
+                        float* red,
+                        float* green,
+                        float* blue, 
                         int width,
                         int height)
 {
-    if(red.size1() != green.size1() || green.size1() != blue.size1() || blue.size1() != red.size1())
-    {
-        // assert smth bad
-        std::cout << "BAD";
-        return;
-    }
-
-    if(red.size2() != green.size2() || green.size2() != blue.size2() || blue.size2() != red.size2())
-    {
-        // assert smth bad
-        std::cout << "BAD";
-        return;
-    }
-
     float pixels = width * height;
     int maxIndex = width * height * 4;
     int currentIndex = 0;
     float* p = data;
 
-    for (int i = 0; i < height; ++i) {
-        for (int j = 0; j < width && currentIndex < maxIndex; ++j) 
-        {
-            p[0] = clamp(red(i,j)/pixels, 0.0f, 1.0f);
-            p[1] = clamp(green(i,j)/pixels, 0.0f, 1.0f);
-            p[2] = clamp(blue(i,j)/pixels, 0.0f, 1.0f);
+    for (int i = 0; i < pixels; ++i) 
+    {
+            p[0] = clamp(red[i],    0.0f, 1.0f);
+            p[1] = clamp(green[i],  0.0f, 1.0f);
+            p[2] = clamp(blue[i],   0.0f, 1.0f);
             p[3] = 1.0f;
 
             currentIndex+=4;
             p+=4;
-        }
     }
 
 
@@ -221,4 +273,5 @@ Image::~Image()
     delete[] m_red;
     delete[] m_green;
     delete[] m_blue;
+
 }
