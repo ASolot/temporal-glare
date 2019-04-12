@@ -32,6 +32,17 @@ public:
 
 	float camera_fov = 90.f;
 
+    // Tone mapping parameters 
+
+    float m_gamma;
+    float m_Lwhite;
+    float m_alpha;
+
+    float m_exposure;
+    float m_autoExposureValue;
+
+    bool m_autoExposure;
+
 private:
     void updateViewSize(int newWidth, int newHeight);
     float noise();
@@ -110,6 +121,8 @@ private:
     float* m_ImgRedFFT;
     float* m_ImgGreenFFT;
     float* m_ImgBlueFFT;
+
+
 };
 
 

@@ -49,52 +49,59 @@ void TGViewerWidget::setFocal(double newFocus)
 	emit focalChanged(newFocus);
 }
 
+void TGViewerWidget::setGamma(double newGamma)
+{
+	glRenderer->m_gamma	= newGamma;
+	update();
+	emit GammaChanged(newGamma);
+}
+
+void TGViewerWidget::setLWhite(double newLWhite)
+{
+	glRenderer->m_Lwhite = newLWhite;
+	update();
+	emit LWhiteChanged(newLWhite);
+}
+
+void TGViewerWidget::setAlpha(double newAlpha)
+{
+	glRenderer->m_alpha = newAlpha;
+
+	double tmp = (newAlpha - 0.5f) * 20.f;
+	double exposure = std::pow(2.f, tmp);
+
+	setExposure(exposure);
+
+	update();
+	emit AlphaChanged(newAlpha);
+}
+
+void TGViewerWidget::setExposure(double newExposure)
+{
+	glRenderer->m_exposure = newExposure;
+	emit ExposureChanged(newExposure);
+}
+
+void TGViewerWidget::setExposureMode(int newMode)
+{
+	switch(newMode)
+	{
+		case 0: 
+			glRenderer->m_autoExposure = true;
+			break;
+		case 1:
+			glRenderer->m_autoExposure = false;
+			break;
+		default: 
+			glRenderer->m_autoExposure = true;
+	}
+	
+	update();
+	emit ExposureModeChanged(newMode);
+}
+
 void TGViewerWidget::refresh()
 {
-
-				// unsigned char* data = new unsigned char [512 * 512 * 4];
-
-	      // GLuint framebuffer = 0;
-        // glGenFramebuffers(1, &framebuffer);
-        // glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-
-        // // The texture we're going to render to
-        // GLuint renderedTexture;
-        // glGenTextures(1, &renderedTexture);
-
-        // // "Bind" the newly created texture : all future texture functions will modify this texture
-        // glBindTexture(GL_TEXTURE_2D, renderedTexture);
-
-        // // Give an empty image to OpenGL ( the last "0" )
-        // glTexImage2D(GL_TEXTURE_2D, 0,GL_RGB, 512, 512, 0,GL_RGB, GL_UNSIGNED_BYTE, 0);
-
-        // // Poor filtering. Needed !
-        // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-        // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-
-        // // Set "renderedTexture" as our colour attachement #0
-        // glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, renderedTexture, 0);
-
-        // // Set the list of draw buffers.
-        // GLenum DrawBuffers[1] = {GL_COLOR_ATTACHMENT0};
-        // glDrawBuffers(1, DrawBuffers); // "1" is the size of DrawBuffers
-
-        // // Always check that our framebuffer is ok
-        // if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-        //     return;
-
-        // // Render to our framebuffer
-        // glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-        // glViewport(0,0,512,512);
-
-        // glLineWidth(2.5);
-        // glColor3f(1.0, 0.0, 0.0);
-        // glBegin(GL_LINES);
-        // glVertex3f(0.0, 0.0, 0.0);
-        // glVertex3f(15, 0, 0);
-        // glEnd();
-
-        // glReadPixels(0, 0, 512, 512, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8, data);
 
 }
 
@@ -241,3 +248,29 @@ float TGViewerWidget::getFov()
 	return glRenderer->camera_fov;
 }
 
+float TGViewerWidget::getGamma()
+{
+	return glRenderer->m_gamma;
+}
+
+float TGViewerWidget::getLwhite()
+{
+	return glRenderer->m_Lwhite;
+}
+
+float TGViewerWidget::getExposure()
+{
+	return glRenderer->m_exposure;
+}
+
+float TGViewerWidget::getAlpha()
+{
+	return glRenderer->m_alpha;
+}
+
+int TGViewerWidget::getExposureMode()
+{
+	if(glRenderer->m_autoExposure) 
+		return 0; 
+	return 1;
+}

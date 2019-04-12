@@ -18,6 +18,11 @@ public:
 	float getFocal();
 	float getAperture();
 	float getFov();
+	float getGamma();
+	float getLwhite();
+	float getExposure();
+	float getAlpha();
+	int getExposureMode();
 
 public slots:
     void animate();
@@ -27,6 +32,12 @@ public slots:
 	void setFocal(double newFocus);  // Set a new focus distance for the virtual camera
 	void setAperture(double newAperture);  // Set a new aperture for cameras
 	void setFov(double newFov);  // Set a new aperture for cameras
+	
+	void setGamma(double newGamma);
+	void setLWhite(double newLWhite);
+	void setExposure(double newAlpha);
+	void setAlpha(double newAlpha);
+	void setExposureMode(int newMode); 	// true for Auto false for Manual
 
 signals:
 	void KposChanged(QVector3D newK_pos);
@@ -38,6 +49,16 @@ signals:
 	void fovChanged(double fov);
 signals:
 	void renderTimeUpdated(int renderTime);
+signals: 
+	void GammaChanged(double gamma);
+signals:
+	void LWhiteChanged(double LWhite);
+signals:
+	void AlphaChanged(double alpha);
+signals:
+	void ExposureChanged(double exposure);
+signals:
+	void ExposureModeChanged(int mode);
 
 protected:
     void paintEvent(QPaintEvent *event) override;

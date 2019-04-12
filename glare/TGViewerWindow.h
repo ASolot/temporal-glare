@@ -29,7 +29,7 @@ public slots:
 private:
     TemporalGlareRenderer tgRenderer;
 	QLabel *cameraPosLabel;
-	QDoubleSpinBox *apertureSB, *focalSB, *fovSB, *control1SB, *control2SB;
+	QDoubleSpinBox *apertureSB, *focalSB, *fovSB, *control1SB, *control2SB, *alphaSB;
     QLabel *renderTimeLabel;
 	QLabel *focalLengthLabel;
 };

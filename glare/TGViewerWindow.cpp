@@ -40,6 +40,17 @@ TGViewerWindow::TGViewerWindow()
 	QComboBox *exposure_combo = new QComboBox(this);
 	exposure_combo->addItems(commands);
 	exposure_layout->addWidget(exposure_combo);
+
+	QLabel *alphaLabel = new QLabel(tr("Alpha"));
+	exposureLabel->setAlignment(Qt::AlignCenter);
+	exposure_layout->addWidget(alphaLabel);
+
+	alphaSB = new QDoubleSpinBox(this);
+	alphaSB->setMinimum(-10);
+	alphaSB->setMaximum(10);
+	alphaSB->setSingleStep(0.1);
+	exposure_layout->addWidget(alphaSB);
+
 	controls_layout->addLayout(exposure_layout);
 
 	// tonemap function layout
@@ -61,6 +72,7 @@ TGViewerWindow::TGViewerWindow()
 	control1SB = new QDoubleSpinBox(this);
 	control1SB->setMinimum(0);
 	control1SB->setMaximum(10);
+	control1SB->setSingleStep(0.1);
 	tonemap_control1_layout->addWidget(control1SB);
 
 	tonemap_layout->addLayout(tonemap_control1_layout);
@@ -74,6 +86,7 @@ TGViewerWindow::TGViewerWindow()
 	control2SB = new QDoubleSpinBox(this);
 	control2SB->setMinimum(0);
 	control2SB->setMaximum(14);
+	control2SB->setSingleStep(0.1);
 	tonemap_control2_layout->addWidget(control2SB);
 
 	tonemap_layout->addLayout(tonemap_control2_layout);
@@ -158,6 +171,11 @@ TGViewerWindow::TGViewerWindow()
 	connect(focalSB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setFocal);
 	connect(apertureSB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setAperture);
 	connect(fovSB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setFov);
+	
+	connect(alphaSB,    static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setAlpha);
+	connect(control1SB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setGamma);
+	connect(control2SB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setLWhite);
+	connect(exposure_combo, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged), tgViewerWidget, &TGViewerWidget::setExposureMode);
 
 	// connect I/O pushbuttons
 	connect(load_exr_button, SIGNAL (released()), this, SLOT (loadExrFile()));
@@ -167,6 +185,11 @@ TGViewerWindow::TGViewerWindow()
 	tgViewerWidget->setFocal(tgViewerWidget->getFocal());
 	tgViewerWidget->setAperture(tgViewerWidget->getAperture());
 	tgViewerWidget->setFov(tgViewerWidget->getFov());
+	tgViewerWidget->setGamma(tgViewerWidget->getGamma());
+	tgViewerWidget->setLWhite(tgViewerWidget->getLwhite());
+	tgViewerWidget->setAlpha(tgViewerWidget->getAlpha());
+	tgViewerWidget->setExposureMode(tgViewerWidget->getExposureMode());
+
 
 
 }

@@ -28,6 +28,8 @@
 #include "ocl_utils.hpp"
 
 
+// TODO: "Auto mode\n\nAuto adjust exposure with a key value proposed by \"Perceptual Effects in Real-time Tone Mapping\" by Krawczyk et al. 2005."
+
 
 /* 
   A right-handed version of the QMatrix4x4.lookAt method
@@ -44,12 +46,18 @@ QMatrix4x4 lookAtRH(QVector3D eye, QVector3D center, QVector3D up)
 
 TemporalGlareRenderer::TemporalGlareRenderer() :
 	m_imgWidth(0), m_imgHeight(0), m_maxPupilSize(9.0f), ncols(0), nrows(0), 
-    m_pupilRadiusPx(0), m_fieldLuminance(100), m_nPoints(750), m_lambda(575.0f/1000.0f/1000.0f), m_distance(20)
+    m_pupilRadiusPx(0), m_fieldLuminance(100), m_nPoints(750), 
+    m_lambda(575.0f/1000.0f/1000.0f), m_distance(20), m_gamma(5.0f), m_alpha(1.0f),
+    m_Lwhite(5.0f), m_autoExposure(true), m_autoExposureValue(1.0f)
 {
     m_apertureTexture = nullptr;
     m_slidTexture = nullptr;
 
     m_imageChanged = false;
+
+    float tmp = (m_alpha - 0.5f) * 20.f;
+    m_exposure = std::pow(2.f, tmp);
+
     initOpenCL();
     
     srand (time(NULL));
@@ -132,29 +140,6 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
 
         // make the neccessary updates 
         updatePupilDiameter(); 
-        
-        // // TODO: adapt based on slider
-        // float t = 1.0f;
-        // float tmp = (t - 0.5f) * 20.f;
-        // float exposure = std::pow(2.f, tmp);
-
-        // float gamma     = 5.0f;
-        // float Lwhite    = 5.0f;
-
-        // toneMapperKernel.setArg(0, inputImage);
-        // toneMapperKernel.setArg(1, toneMapped);
-        // toneMapperKernel.setArg(2, exposure);
-        // toneMapperKernel.setArg(3, gamma);
-        // toneMapperKernel.setArg(4, Lwhite);
-
-        // queue.enqueueNDRangeKernel(
-        //     toneMapperKernel, 
-        //     cl::NullRange, 
-        //     cl::NDRange(image->getWidth(), image->getHeight(), 1), 
-        //     cl::NullRange
-        // );
-        // queue.finish();
-
 
         //pupil generation
         cl::Image2D pupilBuffer(context, 
@@ -353,24 +338,95 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         queue.finish();
 
 
-        for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
-        {
-            data[i*4] = (unsigned char)(255 * raw[i]);
-            data[i*4 + 1] = (unsigned char)(255 * raw[i]);
-            data[i*4 + 2] = (unsigned char)(255 * raw[i]);
-            data[i*4 + 3] = 255;
-        }
+        // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
+        // {
+        //     data[i*4] = (unsigned char)(255 * raw[i]);
+        //     data[i*4 + 1] = (unsigned char)(255 * raw[i]);
+        //     data[i*4 + 2] = (unsigned char)(255 * raw[i]);
+        //     data[i*4 + 3] = 255;
+        // }
         
         
         // spectral blur 
 
         // fft 
 
-        // convolve  with original
+        // convolve  with original m_ImgRedFFT / m_ImgGreenFFT / m_ImgBlueFFT
 
         // ifft 
 
+        clfftSetLayout(planHandle, CLFFT_COMPLEX_INTERLEAVED, CLFFT_REAL);
+        clfftBakePlan(planHandle, 1, &queue(), NULL, NULL);
+
+        cl::Buffer redChanneliFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        cl::Buffer greenChanneliFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        cl::Buffer blueChanneliFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+
+        cl::Buffer redChannelFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        cl::Buffer greenChannelFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        cl::Buffer blueChannelFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+
+        queue.enqueueWriteBuffer(redChannelFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight*2, m_ImgRedFFT);
+        queue.enqueueWriteBuffer(greenChannelFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight*2,m_ImgGreenFFT);
+        queue.enqueueWriteBuffer(blueChannelFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight*2, m_ImgBlueFFT);
+        queue.finish();
+
+        // red channel iFFT
+        clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &redChannelFFT(), &redChanneliFFT(), NULL);
+        clFinish(queue());
+        // queue.enqueueReadBuffer(redChanneliFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight * 2, raw);
+        // queue.finish();
+
+        // green channel iFFT
+        clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &greenChannelFFT(), &greenChanneliFFT(), NULL);
+        clFinish(queue());
+        // queue.enqueueReadBuffer(greenChanneliFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, m_ImgGreeniFFT);
+        // queue.finish();
+
+        // blue channel iFFT
+        clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &blueChannelFFT(), &blueChanneliFFT(), NULL);
+        clFinish(queue());
+        // queue.enqueueReadBuffer(blueChanneliFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight*2, raw);
+        // queue.finish();
+
         // tone mapping
+        cl::Image2D toneMappedBuffer(context, 
+                    CL_MEM_READ_WRITE, 
+                    cl::ImageFormat(CL_RGBA, CL_UNSIGNED_INT8),
+                    m_imgWidth,
+                    m_imgHeight,
+                    0,
+                    NULL);
+
+    
+        // TODO: IMPROVE AUTO ALGO FOR EXPOSURE 
+        // TODO: IMPROVE SCROLL GRANULARITY 
+
+        toneMapperKernel.setArg(0, redChanneliFFT);
+        toneMapperKernel.setArg(1, greenChanneliFFT);
+        toneMapperKernel.setArg(2, blueChanneliFFT);
+
+        toneMapperKernel.setArg(3, toneMappedBuffer);
+
+        if(m_autoExposure)
+            toneMapperKernel.setArg(4, m_autoExposureValue);
+        else
+            toneMapperKernel.setArg(4, m_exposure);
+
+        toneMapperKernel.setArg(5, m_gamma);
+        toneMapperKernel.setArg(6, m_Lwhite);
+        toneMapperKernel.setArg(7, m_imgWidth);
+
+        queue.enqueueNDRangeKernel(
+            toneMapperKernel, 
+            cl::NullRange, 
+            cl::NDRange(m_imgWidth, m_imgHeight, 1), 
+            cl::NullRange
+        );
+        queue.finish();
+
+        queue.enqueueReadImage(toneMappedBuffer, CL_TRUE, origin, region, 0, 0 , data,  NULL, NULL);
+        queue.finish();
 
         QImage img(data, m_imgWidth, m_imgHeight, QImage::Format_RGBA8888);
         painter->drawImage(0, 0, img);        
@@ -378,6 +434,7 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
          std::cerr << "ERROR: " << err.what() << "(" << getOCLErrorString(err.err()) << ")" << std::endl;
     }
     delete[] data;
+    delete[] raw;
 }
 
 // Read exr file data
@@ -398,6 +455,8 @@ void TemporalGlareRenderer::readExrFile(const QString& fileName)
     m_imgHeight = image->getHeight();
 
     m_imageChanged = true;
+
+    m_autoExposureValue = image->getAutoKeyValue() / image->getLogAverageLuminance();
 
     std::cout << "Image Loaded\n";
     std::cout << "width: "<<image->getWidth()<<", height: "<<image->getHeight()<<"\n";

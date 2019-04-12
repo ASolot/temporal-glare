@@ -6,17 +6,25 @@ float4 gammaCorrect(float4 color, float gamma);
 float getLuminance(float4 color);
 float4 adjustColor(float4 color, float L, float Ld);
 
-__kernel void tm_reinhard_extended(  __read_only image2d_t inputImage,
-                                     __write_only image2d_t outputImage,
-                                     float exposure,
-                                     float gamma,
-                                     float Lwhite)
+__kernel void tm_reinhard_extended( __global const float* red_channel,
+                                    __global const float* green_channel, 
+                                    __global const float* blue_channel,
+                                    __write_only image2d_t outputImage,
+                                    float exposure,
+                                    float gamma,
+                                    float Lwhite, 
+                                    int width)
 {
     // get the current position
     const int2 pos = {get_global_id(0), get_global_id(1)};
+    int index = pos.x + width * pos.y;
 
-    // read corresponding pixel
-    float4 color = convert_float4(read_imageui(inputImage, sampler, pos));
+    // read corresponding pixels
+    float r = red_channel[index];
+    float g = green_channel[index]; 
+    float b = blue_channel[index]; 
+
+    float4 color = {r, g, b, 1.0f};
 
     float Lw = getLuminance(color);
     float L = exposure * Lw;
@@ -25,8 +33,10 @@ __kernel void tm_reinhard_extended(  __read_only image2d_t inputImage,
     color = clamp(color, 0.0f, 1.0f);
     color = gammaCorrect(color, gamma);
 
-    // color saturation
-    // color = clamp(color, 0.0f, 1.0f);
+    // correct alpha
+    color.w = 1.0f;
+
+    color = color * 255.0f;
 
     // write back
     write_imageui(outputImage, pos, convert_uint4_sat(color));
