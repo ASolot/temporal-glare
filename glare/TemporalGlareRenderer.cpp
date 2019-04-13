@@ -125,6 +125,12 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
     try {
         // updateViewSize( destSize.width(), destSize.height() );
 
+        // TODO Check the formats for FFTs
+        // TODO Remove all additional buffers
+        // TODO Check the spectral blur 
+        // TODO Fix PSF
+        // TODO Implement particle random movement
+
         raw  = new float[m_imgWidth*m_imgHeight*2];
         data = new unsigned char[m_imgWidth*m_imgHeight*4];
         memset(data, 255, m_imgWidth * m_imgHeight * 4);
@@ -298,7 +304,7 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         // queue.finish();
 
 
-        // // fft to get the image
+        // // fft to get the image 
 
 
         cl::Buffer psfBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
@@ -316,14 +322,24 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         // queue.enqueueReadBuffer(psfBuffer, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight * 2, raw);
         // queue.finish();
 
-        cl::Buffer spectralBlurBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
+        // spectral blur 
 
+        cl::Buffer monochromePSF(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
 
+        // the channels resulting from the spectral blur  
+        cl::Buffer redChannelPSF(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
+        cl::Buffer greenChannelPSF(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
+        cl::Buffer blueChannelPSF(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
+        
         spectralBlurKernel.setArg(0, psfBuffer);
-        spectralBlurKernel.setArg(1, spectralBlurBuffer);
-        spectralBlurKernel.setArg(2, m_imgWidth);
-        spectralBlurKernel.setArg(3, m_lambda);
-        spectralBlurKernel.setArg(4, m_distance);
+        spectralBlurKernel.setArg(1, redChannelPSF);
+        spectralBlurKernel.setArg(2, greenChannelPSF);
+        spectralBlurKernel.setArg(3, blueChannelPSF);
+        spectralBlurKernel.setArg(4, monochromePSF);
+        spectralBlurKernel.setArg(5, redChannelPSF); // lambda to RGB mapping -> TBD
+        spectralBlurKernel.setArg(6, m_imgWidth);
+        spectralBlurKernel.setArg(7, m_lambda);
+        spectralBlurKernel.setArg(8, m_distance);
 
         queue.enqueueNDRangeKernel(
             spectralBlurKernel, 
@@ -334,10 +350,10 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
 
         queue.finish();
 
-        queue.enqueueReadBuffer(spectralBlurBuffer, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, raw);
+        queue.enqueueReadBuffer(monochromePSF, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, raw);
         queue.finish();
 
-
+        // // DEBUG SECTION
         // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
         // {
         //     data[i*4] = (unsigned char)(255 * raw[i]);
@@ -345,23 +361,37 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         //     data[i*4 + 2] = (unsigned char)(255 * raw[i]);
         //     data[i*4 + 3] = 255;
         // }
-        
-        
-        // spectral blur 
 
-        // fft 
+        // STEP: COMPUTE FFT OF THE SPECTRAL PSF
 
-        // convolve  with original m_ImgRedFFT / m_ImgGreenFFT / m_ImgBlueFFT
+        // The FFT buffers of the spectral PSF
+        cl::Buffer redChannelPSFFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        cl::Buffer greenChannelPSFFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        cl::Buffer blueChannelPSFFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
 
-        // ifft 
-
-        clfftSetLayout(planHandle, CLFFT_COMPLEX_INTERLEAVED, CLFFT_REAL);
+        clfftSetLayout(planHandle, CLFFT_REAL, CLFFT_COMPLEX_INTERLEAVED);
         clfftBakePlan(planHandle, 1, &queue(), NULL, NULL);
 
-        cl::Buffer redChanneliFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
-        cl::Buffer greenChanneliFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
-        cl::Buffer blueChanneliFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        queue.finish();
 
+        // FFT red
+        clfftEnqueueTransform(planHandle, CLFFT_FORWARD, 1, &queue(), 0, NULL, NULL, &redChannelPSF(), &redChannelPSFFFT(), NULL);
+        clFinish(queue());
+
+        // FFT green
+        clfftEnqueueTransform(planHandle, CLFFT_FORWARD, 1, &queue(), 0, NULL, NULL, &greenChannelPSF(), &greenChannelPSFFFT(), NULL);
+        clFinish(queue());
+
+        // FFT blue
+        clfftEnqueueTransform(planHandle, CLFFT_FORWARD, 1, &queue(), 0, NULL, NULL, &blueChannelPSF(), &blueChannelPSFFFT(), NULL);
+        clFinish(queue());
+
+        
+
+        // STEP: multiply  with original m_ImgRedFFT / m_ImgGreenFFT / m_ImgBlueFFT
+
+        
+        // The FFT buffers of the original image
         cl::Buffer redChannelFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
         cl::Buffer greenChannelFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
         cl::Buffer blueChannelFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
@@ -369,7 +399,70 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         queue.enqueueWriteBuffer(redChannelFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight*2, m_ImgRedFFT);
         queue.enqueueWriteBuffer(greenChannelFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight*2,m_ImgGreenFFT);
         queue.enqueueWriteBuffer(blueChannelFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight*2, m_ImgBlueFFT);
+
+        // the FFT buffers of the results of the convolution
+        cl::Buffer redChannelMult(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        cl::Buffer greenChannelMult(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        cl::Buffer blueChannelMult(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+
         queue.finish();
+
+        // TODO: check the maths for the convolution 
+
+        // red channels conv
+        convOfFFTsKernel.setArg(0, redChannelPSFFFT);
+        convOfFFTsKernel.setArg(1, redChannelFFT);
+        convOfFFTsKernel.setArg(2, redChannelMult);
+        convOfFFTsKernel.setArg(3, m_imgWidth);
+        
+        queue.enqueueNDRangeKernel(
+            convOfFFTsKernel, 
+            cl::NullRange, 
+            cl::NDRange(m_imgWidth, m_imgHeight, 1), 
+            cl::NullRange
+        );
+        queue.finish();
+
+        // green channels conv
+        convOfFFTsKernel.setArg(0, greenChannelPSFFFT);
+        convOfFFTsKernel.setArg(1, greenChannelFFT);
+        convOfFFTsKernel.setArg(2, greenChannelMult);
+        convOfFFTsKernel.setArg(3, m_imgWidth);
+        
+        queue.enqueueNDRangeKernel(
+            convOfFFTsKernel, 
+            cl::NullRange, 
+            cl::NDRange(m_imgWidth, m_imgHeight, 1), 
+            cl::NullRange
+        );
+        queue.finish();
+
+        // blue channels conv
+        convOfFFTsKernel.setArg(0, blueChannelPSFFFT);
+        convOfFFTsKernel.setArg(1, blueChannelFFT);
+        convOfFFTsKernel.setArg(2, blueChannelMult);
+        convOfFFTsKernel.setArg(3, m_imgWidth);
+        
+        queue.enqueueNDRangeKernel(
+            convOfFFTsKernel, 
+            cl::NullRange, 
+            cl::NDRange(m_imgWidth, m_imgHeight, 1), 
+            cl::NullRange
+        );
+        queue.finish();
+
+
+        // STEP: Computing the iFFT of the multiplication (as in convolution result)
+
+        clfftSetLayout(planHandle, CLFFT_COMPLEX_INTERLEAVED, CLFFT_REAL);
+        clfftBakePlan(planHandle, 1, &queue(), NULL, NULL);
+
+        cl::Buffer redChanneliFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        cl::Buffer greenChanneliFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        cl::Buffer blueChanneliFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        queue.finish();
+
+        // TODO: replace redCannelFFT with mult ffts
 
         // red channel iFFT
         clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &redChannelFFT(), &redChanneliFFT(), NULL);
@@ -398,16 +491,12 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
                     0,
                     NULL);
 
-    
-        // TODO: IMPROVE AUTO ALGO FOR EXPOSURE 
-        // TODO: IMPROVE SCROLL GRANULARITY 
-
         toneMapperKernel.setArg(0, redChanneliFFT);
         toneMapperKernel.setArg(1, greenChanneliFFT);
         toneMapperKernel.setArg(2, blueChanneliFFT);
-
         toneMapperKernel.setArg(3, toneMappedBuffer);
 
+        // switch between auto-exposure and custom-exposure for tone mapping
         if(m_autoExposure)
             toneMapperKernel.setArg(4, m_autoExposureValue);
         else
@@ -554,6 +643,7 @@ void TemporalGlareRenderer::initOpenCL()
         compExpKernel    = cl::Kernel(program, "generate_complex_exp");
         compExpMultKernel= cl::Kernel(program, "multiply_with_complex_exp");
         spectralBlurKernel=cl::Kernel(program, "spectral_blur");
+        convOfFFTsKernel = cl::Kernel(program, "conv_of_ffts");
 
         
         clfftInitSetupData(&fftSetup);

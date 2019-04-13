@@ -71,6 +71,7 @@ private:
     cl::Kernel compExpKernel;
     cl::Kernel compExpMultKernel;
     cl::Kernel spectralBlurKernel;
+    cl::Kernel convOfFFTsKernel;
 
     // Image data
     int m_imgWidth;

@@ -44,7 +44,11 @@ __kernel void multiply_with_complex_exp(__read_only image2d_t inputImage,
 }
 
 __kernel void spectral_blur(__global const float* inputImage, 
-							__global float* outputImage,
+							__global float* outputRed,
+							__global float* outputGreen, 
+							__global float* outputBlue,
+							__global float* outputMono,
+							__global const float* spectrumMapping, 
 							int width,
 							float lambda, 
 							float distance
@@ -61,8 +65,8 @@ __kernel void spectral_blur(__global const float* inputImage,
 	// K = 1.0f;
 
 	// modulus and norm
-	outputImage[indexOutput] = inputImage[indexInput]*inputImage[indexInput] + inputImage[indexInput+1]*inputImage[indexInput+1];
-	outputImage[indexOutput] /= K;
+	outputMono[indexOutput] = inputImage[indexInput]*inputImage[indexInput] + inputImage[indexInput+1]*inputImage[indexInput+1];
+	outputMono[indexOutput] /= K;
 
 	// float4 color = (float4)(0, 0, 0, 255);
 
@@ -94,12 +98,29 @@ __kernel void spectral_blur(__global const float* inputImage,
 	// write_imageui(outputImage, pos, convert_uint4_sat(color))
 }
 
-// __kernel void fft_row()
-// {
 
-// }
+__kernel void conv_of_ffts(	__global const float* input2,
+							__global const float* input3, 
+							__global float* output1, 
+							int width)
+{
+	int xp = get_global_id(0);
+	int yp = get_global_id(1);
 
-// __kernel void fft_col()
-// {
-	
-// }
+	int index = (xp + yp*width)*2;
+
+
+	// x1 + y1*j = (x2 + y2*j)(x3 + y3*j)
+	//			 = x2*x3 + x2*y3*j + y2*x3*j -y2*y3
+	// x1 = x2*x3 - y2*y3
+	// y1 = x2*y3 + y2*x3
+	// where x1 = output[index], y1 = output[index+1] etc. 
+
+	// x1 		   =     x2        *     x3        -     y2          *     y3
+	output1[index] = input2[index] * input3[index] - input2[index+1] * input3[index+1];
+
+	// y1            =     x2        *     y3          +     y2          *     x3 
+	output1[index+1] = input2[index] * input3[index+1] + input2[index+1] * input3[index];
+
+
+}
