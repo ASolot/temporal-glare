@@ -55,7 +55,7 @@ __kernel void glr_render_lens_points(__global const float* points,
     float xnew = points[index] + distort * points[index+1];
     xnew = xnew * width/2.0f + width/2.0f;
 
-    float ynew = points[index+2] - distort * points[index+3];
+    float ynew = points[index+2] + distort * points[index+3];
     ynew = ynew * height/2.0f + height/2.0f;
 
     int pos; 

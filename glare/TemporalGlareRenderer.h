@@ -26,6 +26,9 @@ public:
     void paint(QPainter *painter, QPaintEvent *event, int elapsed, const QSize &destSize);
     void readExrFile(const QString& fileName);
 
+    int getWidth();
+    int getHeight();
+
     float focus = 500.0f;
     float apertureSize = 8.0f;
 	int viewWidth, viewHeight; // Resolution of the rendered image in pixels
@@ -48,6 +51,7 @@ private:
     float noise();
     void updatePupilDiameter();
     void updateApertureTexture();
+    void updateLensDeformation();
     void initTextures();
 
     float deformationCoeff(float d);
@@ -72,6 +76,7 @@ private:
     cl::Kernel compExpMultKernel;
     cl::Kernel spectralBlurKernel;
     cl::Kernel convOfFFTsKernel;
+    cl::Kernel computeMagnitudeKernel;
 
     // Image data
     int m_imgWidth;
@@ -102,6 +107,8 @@ private:
     int m_slidWidth;
     int m_slidHeight;
     float m_slidRadiusPx;
+    float m_slidRadiusDeformedPx;
+    float m_distort;
 
     //lens particles
     float* m_pointCoordinates; //x, alphadx, y, alphady

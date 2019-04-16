@@ -12,7 +12,7 @@
 TGViewerWindow::TGViewerWindow()
 {
 	setWindowTitle(tr("Temporal Glare Renderer"));
-	TGViewerWidget * tgViewerWidget = new TGViewerWidget(&tgRenderer, this);
+	tgViewerWidget = new TGViewerWidget(&tgRenderer, this);
 
 	// main layout creation
 	QHBoxLayout *main_layout = new QHBoxLayout;
@@ -102,7 +102,7 @@ TGViewerWindow::TGViewerWindow()
 	controls_layout->addWidget(cameraPosLabel);
 
 	QHBoxLayout *focal_layout = new QHBoxLayout;
-	QLabel *focalLabel = new QLabel(tr("Focal depth"));
+	QLabel *focalLabel = new QLabel(tr("Number of points"));
 	focalLabel->setAlignment(Qt::AlignRight);
 	focal_layout->addWidget(focalLabel);
 	focalSB = new QDoubleSpinBox(this);
@@ -111,36 +111,12 @@ TGViewerWindow::TGViewerWindow()
 	focal_layout->addWidget(focalSB);
 	controls_layout->addLayout(focal_layout);
 
-	QHBoxLayout *aperture_layout = new QHBoxLayout;
-	QLabel *apertureLabel = new QLabel(tr("Aperture"));
-	apertureLabel->setAlignment(Qt::AlignRight);
-	aperture_layout->addWidget(apertureLabel);
-	apertureSB = new QDoubleSpinBox(this);
-	apertureSB->setMinimum(1);
-	apertureSB->setMaximum(100);
-	aperture_layout->addWidget(apertureSB);
-	controls_layout->addLayout(aperture_layout);
-
-	QHBoxLayout *fovlayout = new QHBoxLayout;
-	QLabel *fovLabel = new QLabel(tr("Field-of-view"));
-	fovLabel->setAlignment(Qt::AlignRight);
-	fovlayout->addWidget(fovLabel);
-	fovSB = new QDoubleSpinBox(this);
-	fovSB->setMinimum(2);
-	fovSB->setMaximum(180);
-	fovlayout->addWidget(fovSB);
-	controls_layout->addLayout(fovlayout);
-	focalLengthLabel = new QLabel();
-	focalLengthLabel->setAlignment(Qt::AlignRight);
-	controls_layout->addWidget(focalLengthLabel);
-
 	controls_layout->addStretch();
 
-	QLabel *controlsHelpLabel = new QLabel(tr("To move the camera:\n Hold LMB and move (X/Z);\n Hold Shift+LMB for (X/Y); or\n Keys A/D, S/W and Q.R\n\n"
-			"To change focal depth:\n Hold RMB and move; or\n Keys Up/Down\n\n"
-			"To change aperture:\n Scroll wheel; or\n Keys Left/Right\n\n"
-			"To change fov:\n Keys -/="
+	QLabel *controlsHelpLabel = new QLabel(tr("Key controls not available\n"
 			));
+
+
 	controls_layout->addWidget( controlsHelpLabel );
 	renderTimeLabel = new QLabel(this);
 	controls_layout->addWidget( renderTimeLabel );
@@ -160,17 +136,11 @@ TGViewerWindow::TGViewerWindow()
 	// connect(timer, &QTimer::timeout, this, SLOT (tgViewerWidget->refresh()));
 	// timer->start(50);
 
-	connect(tgViewerWidget, &TGViewerWidget::KposChanged, this, &TGViewerWindow::KposChanged);
+	
 	connect(tgViewerWidget, &TGViewerWidget::focalChanged, focalSB, &QDoubleSpinBox::setValue);
-	connect(tgViewerWidget, &TGViewerWidget::apertureChanged, apertureSB, &QDoubleSpinBox::setValue);
-	connect(tgViewerWidget, &TGViewerWidget::fovChanged, fovSB, &QDoubleSpinBox::setValue);
-	connect(tgViewerWidget, &TGViewerWidget::fovChanged, this, &TGViewerWindow::fovUpdated);
-
 	connect(tgViewerWidget, &TGViewerWidget::renderTimeUpdated, this, &TGViewerWindow::renderTimeUpdated);
 
 	connect(focalSB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setFocal);
-	connect(apertureSB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setAperture);
-	connect(fovSB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setFov);
 	
 	connect(alphaSB,    static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setAlpha);
 	connect(control1SB, static_cast<void (QDoubleSpinBox::*)(double)>(&QDoubleSpinBox::valueChanged), tgViewerWidget, &TGViewerWidget::setGamma);
@@ -194,24 +164,11 @@ TGViewerWindow::TGViewerWindow()
 
 }
 
-void TGViewerWindow::KposChanged(QVector3D newKpos)
-{
-	QString label = QString("Camera Position\n(%1, %2, %3)").arg(QString::number(newKpos.x()), QString::number(newKpos.y()), QString::number(newKpos.z()));
-	cameraPosLabel->setText(label);
-}
 
 void TGViewerWindow::renderTimeUpdated(int renderTime)
 {
 	QString label = QString("Rendering time %1 ms - %2 fps").arg(QString::number(renderTime), QString::number(1000/(renderTime+0.1)));
 	renderTimeLabel->setText(label);
-}
-
-void TGViewerWindow::fovUpdated(double fov)
-{
-	const double sensorWidth = 36.;
-	double focalLength = sensorWidth / 2. / tan(fov / 2. * M_PI / 180.);
-	QString label = QString("Focal length: %1 mm").arg(QString::number(focalLength));
-	focalLengthLabel->setText(label);
 }
 
 void TGViewerWindow::loadExrFile()
@@ -225,5 +182,6 @@ void TGViewerWindow::loadExrFile()
 	else
 	{
 		tgRenderer.readExrFile(fileName);
+		tgViewerWidget->resize(tgRenderer.getWidth(), tgRenderer.getHeight());
 	}
 }

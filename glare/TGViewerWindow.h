@@ -21,12 +21,11 @@ public:
     TGViewerWindow();
 
 public slots:
-	void KposChanged(QVector3D newKPos);
 	void renderTimeUpdated(int renderTime);
-	void fovUpdated(double fov);
 	void loadExrFile();
 
 private:
+	TGViewerWidget* tgViewerWidget;
     TemporalGlareRenderer tgRenderer;
 	QLabel *cameraPosLabel;
 	QDoubleSpinBox *apertureSB, *focalSB, *fovSB, *control1SB, *control2SB, *alphaSB;

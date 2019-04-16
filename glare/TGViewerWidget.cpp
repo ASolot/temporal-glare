@@ -6,18 +6,11 @@
 #include <QTimer>
 #include <QTime>
 
-#define LF_max_focal 15000.f
-#define LF_min_focal 1.f
-
-#define LF_min_fov 2.f
-#define LF_max_fov 180.f
-
-
 TGViewerWidget::TGViewerWidget(TemporalGlareRenderer *renderer, QWidget *parent)
     : QOpenGLWidget(parent), glRenderer(renderer)
 {
     elapsed = 0;
-		setMinimumSize(256, 256);
+		setMinimumSize(512, 512);
     setAutoFillBackground(false);
 		setFocusPolicy(Qt::StrongFocus);
 
@@ -27,7 +20,7 @@ TGViewerWidget::TGViewerWidget(TemporalGlareRenderer *renderer, QWidget *parent)
 
 QSize TGViewerWidget::sizeHint() const
 {
-		return QSize(1024,1024);
+		return QSize(512,512);
 }
 
 void TGViewerWidget::animate()
@@ -164,24 +157,24 @@ void TGViewerWidget::keyPressEvent(QKeyEvent *event)
 	// 	K_pos.setZ(K_pos.z() + posStep);
 	// 	setKpos(K_pos);
   //   }
-    if(event->key() == Qt::Key_Left){
-		setAperture(getAperture() - apertureStep);
-    }
-    if(event->key() == Qt::Key_Right){
-		setAperture(getAperture() + apertureStep);	
-    }
-    if(event->key() == Qt::Key_Up){
-		setFocal(std::min(getFocal() + focusStep, LF_max_focal));
-    }
-    if(event->key() == Qt::Key_Down){
-		setFocal(std::max(getFocal() - focusStep, LF_min_focal));		
-    }
-	if (event->key() == Qt::Key_Minus) {
-		setFov(std::max(getFov() - cameraFovStep, LF_min_fov));
-	}
-	if (event->key() == Qt::Key_Equal) {
-		setFov(std::min(getFov() + cameraFovStep, LF_max_fov));
-	}
+  //   if(event->key() == Qt::Key_Left){
+	// 	setAperture(getAperture() - apertureStep);
+  //   }
+  //   if(event->key() == Qt::Key_Right){
+	// 	setAperture(getAperture() + apertureStep);	
+  //   }
+  //   if(event->key() == Qt::Key_Up){
+	// 	setFocal(std::min(getFocal() + focusStep, LF_max_focal));
+  //   }
+  //   if(event->key() == Qt::Key_Down){
+	// 	setFocal(std::max(getFocal() - focusStep, LF_min_focal));		
+  //   }
+	// if (event->key() == Qt::Key_Minus) {
+	// 	setFov(std::max(getFov() - cameraFovStep, LF_min_fov));
+	// }
+	// if (event->key() == Qt::Key_Equal) {
+	// 	setFov(std::min(getFov() + cameraFovStep, LF_max_fov));
+	// }
 	event->accept();
 }
 
@@ -198,10 +191,9 @@ void TGViewerWidget::mouseMoveEvent(QMouseEvent * event)
 {
 	QPoint delta = event->pos() - mouseDragStart;
 
-	if (mouseDragButton == Qt::RightButton) {
-		float new_focal = mouseDragFocal - (float)delta.y() / 2.f;
-		setFocal(std::min(std::max(new_focal, LF_min_focal), LF_max_focal));
-	}
+	// if (mouseDragButton == Qt::RightButton) {
+
+	// }
 	// else {
 	// 	QVector3D newK_pos;
 	// 	if (event->modifiers() == Qt::ShiftModifier) {

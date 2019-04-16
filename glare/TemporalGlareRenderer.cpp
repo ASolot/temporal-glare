@@ -10,25 +10,11 @@
 
 #include "TemporalGlareRenderer.h"
 
-// #ifndef VIENNACL_WITH_OPENCL
-//   #define VIENNACL_WITH_OPENCL
-// #endif
-
-
-// #include <viennacl/ocl/backend.hpp>
-// #include <viennacl/vector.hpp>
-// #include <viennacl/matrix.hpp>
-// #include <viennacl/linalg/matrix_operations.hpp>
-// #include <viennacl/linalg/norm_2.hpp>
-// #include <viennacl/linalg/prod.hpp>
-
-// #include <viennacl/fft.hpp>
-// #include <viennacl/linalg/fft_operations.hpp>
-
 #include "ocl_utils.hpp"
+#include "spectrumMap.h"
 
 
-// TODO: "Auto mode\n\nAuto adjust exposure with a key value proposed by \"Perceptual Effects in Real-time Tone Mapping\" by Krawczyk et al. 2005."
+// Auto adjust exposure with a key value proposed by \"Perceptual Effects in Real-time Tone Mapping\" by Krawczyk et al. 2005."
 
 
 /* 
@@ -46,9 +32,10 @@ QMatrix4x4 lookAtRH(QVector3D eye, QVector3D center, QVector3D up)
 
 TemporalGlareRenderer::TemporalGlareRenderer() :
 	m_imgWidth(0), m_imgHeight(0), m_maxPupilSize(9.0f), ncols(0), nrows(0), 
-    m_pupilRadiusPx(0), m_fieldLuminance(100), m_nPoints(750), 
+    m_pupilRadiusPx(0), m_fieldLuminance(0.5), m_nPoints(2000), 
     m_lambda(575.0f/1000.0f/1000.0f), m_distance(20), m_gamma(5.0f), m_alpha(1.0f),
-    m_Lwhite(5.0f), m_autoExposure(true), m_autoExposureValue(1.0f)
+    m_Lwhite(5.0f), m_autoExposure(true), m_autoExposureValue(1.0f), m_distort(0.0f),
+    m_slidRadiusDeformedPx(0), m_slidRadiusPx(0)
 {
     m_apertureTexture = nullptr;
     m_slidTexture = nullptr;
@@ -66,10 +53,19 @@ TemporalGlareRenderer::TemporalGlareRenderer() :
 void TemporalGlareRenderer::updatePupilDiameter()
 {
     // TODO: limit variation based on time 
+    // TODO: auto link m_fieldLuminance with the LWhite from the HDR image
     float p = 4.9 - 3*tanh(0.4 * (log(m_fieldLuminance) + 1));
-    m_apperture = p + noise() * m_maxPupilSize / p * sqrt( 1 - p / m_maxPupilSize );
-    m_pupilRadiusPx = m_imgHeight / 2.0f * m_apperture / (m_maxPupilSize + 2.0f);
-    m_slidRadiusPx  = m_imgHeight / 2.0f * 1.0f / m_maxPupilSize;
+    m_apperture = p + noise() * m_maxPupilSize / p * sqrt( 1 - p / m_maxPupilSize);
+    m_pupilRadiusPx = (float)m_imgHeight / m_maxPupilSize * m_apperture / 2.0f;
+    // m_pupilRadiusPx = (float)m_imgHeight / 2.0f * m_apperture / m_maxPupilSize;
+    m_slidRadiusPx  = (float)m_imgHeight / m_maxPupilSize * 3.7f / 2.0f ;
+}
+
+void TemporalGlareRenderer::updateLensDeformation()
+{
+    // TODO: Smooth out the noise function 
+    m_distort = noise() * 100;
+    m_slidRadiusDeformedPx = m_slidRadiusPx + m_distort * deformationCoeff(2*m_slidRadiusPx/m_imgHeight);
 }
 
 void TemporalGlareRenderer::updateApertureTexture()
@@ -95,9 +91,11 @@ void TemporalGlareRenderer::updateApertureTexture()
         cl::Buffer buffer_complex(context, CL_MEM_READ_WRITE, sizeof(float) * test_size);
 
         compExpKernel.setArg(0, buffer_complex);
-        compExpKernel.setArg(1, m_lambda);
-        compExpKernel.setArg(2, m_distance);
-        compExpKernel.setArg(3, m_imgWidth);
+        compExpKernel.setArg(1, m_lambda);                              // mm
+        compExpKernel.setArg(2, m_distance);                            // mm
+        compExpKernel.setArg(3, m_imgWidth);                            // px
+        compExpKernel.setArg(4, m_imgHeight);
+        compExpKernel.setArg(5, (float)m_imgHeight / m_maxPupilSize);   // px / mm
 
         queue.enqueueNDRangeKernel(
             compExpKernel, 
@@ -122,16 +120,18 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
 
     unsigned char* data = NULL;
     float* raw = NULL;
+    float* magnitude = NULL; 
+    float* r = NULL;
+    float* g = NULL;
+    float* b = NULL;
     try {
-        // updateViewSize( destSize.width(), destSize.height() );
-
-        // TODO Check the formats for FFTs
+        
         // TODO Remove all additional buffers
         // TODO Check the spectral blur 
         // TODO Fix PSF
-        // TODO Implement particle random movement
-
-        raw  = new float[m_imgWidth*m_imgHeight*2];
+        // TODO Smooth particle random movement
+        magnitude = new float[m_imgWidth * m_imgHeight];
+        raw  = new float[m_imgWidth*m_imgHeight*4];
         data = new unsigned char[m_imgWidth*m_imgHeight*4];
         memset(data, 255, m_imgWidth * m_imgHeight * 4);
 
@@ -142,12 +142,13 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
 
 
         std::cout<<"Frame Updated\n";
-        updateApertureTexture();
 
         // make the neccessary updates 
+        updateApertureTexture();
         updatePupilDiameter(); 
+        updateLensDeformation();
 
-        //pupil generation
+        //STEP: GENERATING THE PUPIL
         cl::Image2D pupilBuffer(context, 
                     CL_MEM_READ_WRITE, 
                     cl::ImageFormat(CL_RGBA, CL_UNSIGNED_INT8),
@@ -172,11 +173,10 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         );
         queue.finish();
 
-
         // queue.enqueueReadImage(pupilBuffer, CL_TRUE, origin, region, 0, 0 , data,  NULL, NULL);
         // queue.finish();
 
-        // gratings 
+        //STEP: GRATINGS RENDERING 
         cl::Image2D slidBufferIn(context, 
                     CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
                     cl::ImageFormat(CL_RGBA, CL_UNSIGNED_INT8),
@@ -196,7 +196,7 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         gratingsKernel = cl::Kernel(program, "glr_render_gratings");
         gratingsKernel.setArg(0, slidBufferIn);
         gratingsKernel.setArg(1, slidBufferOut);
-        gratingsKernel.setArg(2, m_slidRadiusPx);
+        gratingsKernel.setArg(2, m_slidRadiusDeformedPx);
         gratingsKernel.setArg(3, m_imgWidth);
         gratingsKernel.setArg(4, m_imgHeight);
         gratingsKernel.setArg(5, m_pupilCenter);
@@ -209,7 +209,7 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         );
         queue.finish();
         
-        // lens points 
+        //STEP: GENERATE LENS POINTS  
         cl::Buffer coordinatesBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * m_nPoints * 4);
         queue.enqueueWriteBuffer(coordinatesBuffer, CL_TRUE, 0, sizeof(float) * m_nPoints * 4, m_pointCoordinates);
         
@@ -224,7 +224,7 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         lensDotsKernel.setArg(1,pointsBuffer);
         lensDotsKernel.setArg(2,m_imgWidth);
         lensDotsKernel.setArg(3,m_imgHeight);
-        lensDotsKernel.setArg(4,0.0f);
+        lensDotsKernel.setArg(4,m_distort); // distort coefficient -> how the lens is deformed (pixels)
 
         queue.finish();
 
@@ -242,7 +242,7 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         queue.enqueueReadBuffer(pointsBuffer, CL_TRUE, 0, sizeof(unsigned char) * m_imgWidth * m_imgHeight * 4, data);
         queue.finish();
 
-        // merge images 
+        //STEP: MERGE PUPIL-RELATED IMAGES 
         cl::Image2D mergeBufferOut(context, 
                     CL_MEM_READ_WRITE, 
                     cl::ImageFormat(CL_RGBA, CL_UNSIGNED_INT8),
@@ -274,11 +274,11 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         );
         queue.finish();
 
-        // queue.enqueueReadImage(mergeBufferOut, CL_TRUE, origin, region, 0, 0 , data,  NULL, NULL);
-        // queue.finish();
+        queue.enqueueReadImage(mergeBufferOut, CL_TRUE, origin, region, 0, 0 , data,  NULL, NULL);
+        queue.finish();
 
-        // multiply with complex exponential (fresnel term)
-        // takes only the first channel
+        // STEP: multiply with complex exponential (fresnel term)
+        // takes only the first channel from the buffer, which contains the monochrome texture
 
         cl::Buffer complexApertureBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight * 2);
         cl::Buffer complexExponentialBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight * 2);
@@ -303,11 +303,23 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         // queue.enqueueReadBuffer(complexApertureBuffer, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight * 2, m_complexAperture);
         // queue.finish();
 
+        // cl::Buffer complexApertureBufferMagnitude(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
 
-        // // fft to get the image 
+        // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
+        // {
+        //     float x = m_complexAperture[2*i];
+        //     float y = m_complexAperture[2*i + 1];
+        //     magnitude[i] = std::sqrt(x*x + y*y);
+        // }
+        
 
+        // queue.enqueueWriteBuffer(complexApertureBufferMagnitude, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, magnitude);
+        // queue.finish();
+        
 
-        cl::Buffer psfBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
+        //STEP: APPLY THE FFT TO GET THE PSF
+
+        cl::Buffer psfBuffer(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight * 2);
 
         size_t clLengths[2] = {m_imgWidth, m_imgHeight};
         clfftCreateDefaultPlan(&planHandle, context(), CLFFT_2D, clLengths);
@@ -319,27 +331,82 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         clfftEnqueueTransform(planHandle, CLFFT_FORWARD, 1, &queue(), 0, NULL, NULL, &complexApertureBuffer(), &psfBuffer(), NULL);
         clFinish(queue());
 
-        // queue.enqueueReadBuffer(psfBuffer, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight * 2, raw);
-        // queue.finish();
-
-        // spectral blur 
-
+        queue.enqueueReadBuffer(psfBuffer, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight * 2, raw);
+        queue.finish();
+        
+        //STEP: SPECTRAL BLUR
         cl::Buffer monochromePSF(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
 
+        // From psfBuffer to monochromePSF
+
+        cl::Image2D fresnelPSF(context, 
+                    CL_MEM_READ_WRITE, 
+                    cl::ImageFormat(CL_RGBA, CL_FLOAT),
+                    m_imgWidth,
+                    m_imgHeight,
+                    0,
+                    NULL);
+
+        computeMagnitudeKernel.setArg(0, psfBuffer);
+        computeMagnitudeKernel.setArg(1, fresnelPSF);
+        computeMagnitudeKernel.setArg(2, monochromePSF); // debug 
+        computeMagnitudeKernel.setArg(3, m_imgWidth);
+        computeMagnitudeKernel.setArg(4, m_imgHeight);
+        computeMagnitudeKernel.setArg(5, m_lambda);
+        computeMagnitudeKernel.setArg(6, m_distance);
+
+        queue.enqueueNDRangeKernel(
+            computeMagnitudeKernel, 
+            cl::NullRange, 
+            cl::NDRange(m_imgWidth, m_imgHeight, 1), 
+            cl::NullRange
+        );
+
+        queue.finish();
+
+        queue.enqueueReadBuffer(monochromePSF, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, magnitude);
+        queue.finish();
+
+        // TODO: Implement LOG norm 
+        float normFactor = 1.0f;
+        for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
+        {
+            if(magnitude[i] > normFactor)
+                normFactor = magnitude[i];
+        }
+
+
+        queue.enqueueReadImage(fresnelPSF, CL_TRUE, origin, region, 0, 0 , raw,  NULL, NULL);
+        queue.finish();
+
+        
         // the channels resulting from the spectral blur  
         cl::Buffer redChannelPSF(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
         cl::Buffer greenChannelPSF(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
         cl::Buffer blueChannelPSF(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight);
-        
-        spectralBlurKernel.setArg(0, psfBuffer);
+
+        // TODO: adapt it to the spectrum mapping vector
+        cl::Buffer spectrumMapping(context, CL_MEM_READ_WRITE, sizeof(float) * SPECTRUM_RESOLUTION * 3);
+        queue.enqueueWriteBuffer(spectrumMapping, CL_TRUE, 0, sizeof(float) * SPECTRUM_RESOLUTION * 3, spectrum);
+
+        cl::Image2D fresnelPSF2(context, 
+                    CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, 
+                    cl::ImageFormat(CL_RGBA, CL_FLOAT),
+                    m_imgWidth,
+                    m_imgHeight,
+                    0,
+                    raw);
+
+        spectralBlurKernel.setArg(0, fresnelPSF2);
         spectralBlurKernel.setArg(1, redChannelPSF);
         spectralBlurKernel.setArg(2, greenChannelPSF);
         spectralBlurKernel.setArg(3, blueChannelPSF);
-        spectralBlurKernel.setArg(4, monochromePSF);
-        spectralBlurKernel.setArg(5, redChannelPSF); // lambda to RGB mapping -> TBD
-        spectralBlurKernel.setArg(6, m_imgWidth);
+        spectralBlurKernel.setArg(4, spectrumMapping); // lambda to RGB mapping -> TBD
+        spectralBlurKernel.setArg(5, m_imgWidth);
+        spectralBlurKernel.setArg(6, m_imgHeight);
         spectralBlurKernel.setArg(7, m_lambda);
         spectralBlurKernel.setArg(8, m_distance);
+        spectralBlurKernel.setArg(9, normFactor);
 
         queue.enqueueNDRangeKernel(
             spectralBlurKernel, 
@@ -350,17 +417,19 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
 
         queue.finish();
 
-        queue.enqueueReadBuffer(monochromePSF, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, raw);
+        r = new float[m_imgWidth*m_imgHeight];
+        g = new float[m_imgWidth*m_imgHeight];
+        b = new float[m_imgWidth*m_imgHeight];
+
+        queue.enqueueReadBuffer(redChannelPSF, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, r);
         queue.finish();
 
-        // // DEBUG SECTION
-        // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
-        // {
-        //     data[i*4] = (unsigned char)(255 * raw[i]);
-        //     data[i*4 + 1] = (unsigned char)(255 * raw[i]);
-        //     data[i*4 + 2] = (unsigned char)(255 * raw[i]);
-        //     data[i*4 + 3] = 255;
-        // }
+        queue.enqueueReadBuffer(greenChannelPSF, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, g);
+        queue.finish();
+
+        queue.enqueueReadBuffer(blueChannelPSF, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, b);
+        queue.finish();
+
 
         // STEP: COMPUTE FFT OF THE SPECTRAL PSF
 
@@ -462,22 +531,25 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         cl::Buffer blueChanneliFFT(context, CL_MEM_READ_WRITE, sizeof(float) * m_imgWidth * m_imgHeight*2);
         queue.finish();
 
-        // TODO: replace redCannelFFT with mult ffts
+        // TODO: replace redCannelFFT with the result of fft multiplication
 
         // red channel iFFT
-        clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &redChannelFFT(), &redChanneliFFT(), NULL);
+        // clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &redChannelFFT(), &redChanneliFFT(), NULL);
+        clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &redChannelMult(), &redChanneliFFT(), NULL);
         clFinish(queue());
         // queue.enqueueReadBuffer(redChanneliFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight * 2, raw);
         // queue.finish();
 
         // green channel iFFT
-        clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &greenChannelFFT(), &greenChanneliFFT(), NULL);
+        // clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &greenChannelFFT(), &greenChanneliFFT(), NULL);
+        clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &greenChannelMult(), &greenChanneliFFT(), NULL);
         clFinish(queue());
         // queue.enqueueReadBuffer(greenChanneliFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight, m_ImgGreeniFFT);
         // queue.finish();
 
         // blue channel iFFT
-        clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &blueChannelFFT(), &blueChanneliFFT(), NULL);
+        // clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &blueChannelFFT(), &blueChanneliFFT(), NULL);
+        clfftEnqueueTransform(planHandle, CLFFT_BACKWARD, 1, &queue(), 0, NULL, NULL, &blueChannelMult(), &blueChanneliFFT(), NULL);
         clFinish(queue());
         // queue.enqueueReadBuffer(blueChanneliFFT, CL_TRUE, 0, sizeof(float) * m_imgWidth * m_imgHeight*2, raw);
         // queue.finish();
@@ -517,6 +589,51 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         queue.enqueueReadImage(toneMappedBuffer, CL_TRUE, origin, region, 0, 0 , data,  NULL, NULL);
         queue.finish();
 
+        // DEBUG SECTION
+        // NORM
+        float max = 1.0f;
+
+        // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
+        // {
+        //     float x = raw[2*i];
+        //     float y = raw[2*i + 1];
+        //     magnitude[i] = std::sqrt(x*x + y*y);
+        //     // data[i*4] = (unsigned char)(255 * std::sqrt(x*x + y*y));
+        //     // data[i*4 + 1] = 0; //(unsigned char)(255 * raw[i]);
+        //     // data[i*4 + 2] = 0; //(unsigned char)(255 * raw[i]);
+        //     // data[i*4 + 3] = 255;
+        // }
+        // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
+        // {
+        //     float x = m_complexAperture[2*i];
+        //     float y = m_complexAperture[2*i + 1];
+        //     magnitude[i] = std::sqrt(x*x + y*y);
+        //     // data[i*4] = (unsigned char)(255 * std::sqrt(x*x + y*y));
+        //     // data[i*4 + 1] = 0; //(unsigned char)(255 * raw[i]);
+        //     // data[i*4 + 2] = 0; //(unsigned char)(255 * raw[i]);
+        //     // data[i*4 + 3] = 255;
+        // }
+        // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
+        // {
+        //     if(magnitude[i] > max)
+        //         max = magnitude[i];
+        // }
+        // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
+        // {
+        //     data[i*4]     = (unsigned char)(255 * magnitude[i]/max);
+        //     data[i*4 + 1] = data[i*4]; //(unsigned char)(255 * raw[i]);
+        //     data[i*4 + 2] = data[i*4]; //(unsigned char)(255 * raw[i]);
+        //     data[i*4 + 3] = 255;
+        // }
+
+        // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
+        // {
+        //     data[i*4]     = (unsigned char)(255 * r[i]);
+        //     data[i*4 + 1] = (unsigned char)(255 * g[i]);
+        //     data[i*4 + 2] = (unsigned char)(255 * b[i]);
+        //     data[i*4 + 3] = 255;
+        // }
+
         QImage img(data, m_imgWidth, m_imgHeight, QImage::Format_RGBA8888);
         painter->drawImage(0, 0, img);        
     } catch(cl::Error err) {
@@ -524,6 +641,11 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
     }
     delete[] data;
     delete[] raw;
+    delete[] magnitude;
+    delete[] r;
+    delete[] g;
+    delete[] b;
+    
 }
 
 // Read exr file data
@@ -644,6 +766,7 @@ void TemporalGlareRenderer::initOpenCL()
         compExpMultKernel= cl::Kernel(program, "multiply_with_complex_exp");
         spectralBlurKernel=cl::Kernel(program, "spectral_blur");
         convOfFFTsKernel = cl::Kernel(program, "conv_of_ffts");
+        computeMagnitudeKernel = cl::Kernel(program, "compute_magnitude_kernel");
 
         
         clfftInitSetupData(&fftSetup);
@@ -661,7 +784,7 @@ void TemporalGlareRenderer::initOpenCL()
 void TemporalGlareRenderer::initTextures()
 {
     int n; 
-    m_slidTexture = stbi_load("../textures/grating2.bmp",
+    m_slidTexture = stbi_load("../textures/grating3.bmp",
                                 &m_slidWidth,
                                 &m_slidHeight, 
                                 &n, 
@@ -689,18 +812,22 @@ void TemporalGlareRenderer::initTextures()
     for(int i = 0; i < m_nPoints; ++i)
     {
         // rand x coordinate  (-1 , 1)
-        int sign = ( rand()%2 ? 1 : -1);
+        int sign1 = ( rand()%2 ? 1 : -1);
+        int sign2 = ( rand()%2 ? 1 : -1);
+
         p[0] = rand() % 1000 / 1000.0f;
-        p[1] = deformationCoeff(p[0]);
-        p[0] *= sign;
-        p[1] *= sign;
-        
-        // rand y coordinate (-1 , 1)
-        sign = ( rand()%2 ? 1 : -1);
         p[2] = rand() % 1000 / 1000.0f;
-        p[3] = deformationCoeff(p[2]);
-        p[2] *= sign;
-        p[3] *= sign;
+        
+        float radius = std::sqrt(p[0] * p[0] + p[1] * p[1]);
+        float dr = deformationCoeff(2*radius/m_imgHeight);
+
+        p[1] = p[0] * dr / radius;
+        p[3] = p[2] * dr / radius;    
+
+        p[0] *= sign1;
+        p[1] *= sign1;
+        p[2] *= sign2;
+        p[3] *= sign2;
 
         p+=4;
     }
@@ -792,6 +919,16 @@ void lensOutlinePoly(float& ya, const float &R)
 float TemporalGlareRenderer::deformationCoeff(float d)
 {
     return (exp(d) - 1.0) / (exp(1) - 1.0);
+}
+
+int TemporalGlareRenderer::getWidth()
+{
+    return m_imgWidth;
+}
+
+int TemporalGlareRenderer::getHeight()
+{
+    return m_imgHeight;
 }
 
 TemporalGlareRenderer::~TemporalGlareRenderer()
