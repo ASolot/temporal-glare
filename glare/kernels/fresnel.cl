@@ -119,13 +119,11 @@ __kernel void generate_complex_exp( __global float* output,
 	index = 2*index;
 
 	// center the coordinates to get a proper fresnel term
- 
-	// float xp = ((float)xi/width - 0.5f ) / resolution / (1.0)  / d / lambda;	// mm 
-	// float yp = ((float)yi/height- 0.5f ) / resolution / (1.0)  / d / lambda;	// mm
+	// float xp = xi;
+	// float yp = yi;
 
-	// xp = xp * 2.25;
-	// yp = yp * 2.25;	
-
+	float xp = ((float)xi/width - 0.5f ) / resolution / (1.0)  / d / lambda;	// mm 
+	float yp = ((float)yi/height- 0.5f ) / resolution / (1.0)  / d / lambda;	// mm
 
 	// rad / mm^2 * px^2 / px^2 * mm^2 => rad 
 	float value = PI / (d * lambda) * (xp*xp + yp*yp); // (d * d * lambda * lambda);
@@ -146,7 +144,7 @@ __kernel void multiply_with_complex_exp(__read_only image2d_t inputImage,
 	const int2 pos = {xp, yp};
 
     int index = xp + yp * width; 
-	// index = 2*index;
+	index = 2*index;
 
 	// we have info only on the 1st channel
 	// float4 colour = convert_float4(read_imageui(inputImage, sampler, pos)) / 255.0f;
@@ -186,7 +184,8 @@ __kernel void compute_magnitude_kernel(	__global float* inputImage,
 	float color = inputImage[indexInput]*inputImage[indexInput] + inputImage[indexInput+1]*inputImage[indexInput+1];
 	
 	// normalisation as part of Fresnel equation
-	color = sqrt(color)/K;
+	color = sqrt(color);
+	color = color/K;
 
 	// fft normalisation
 	color = color / width / height;
@@ -215,17 +214,26 @@ __kernel void spectral_blur(__read_only image2d_t inputImage,
 	int yp = get_global_id(1);
 	const int2 pos = {xp, yp};
 
-	int indexOutput = xp + yp * width; 
+	int indexOutput = pos.x + pos.y * width; 
 
-	ulong seed = 0;
-	PRNG prng = init(indexOutput, seed);
+	// Apply what is known as FFTSHIFT
 
+	if (pos.x < width / 2) 
+		pos.x = pos.x + width/2;
+	else 
+		pos.x = pos.x - width/2;
 
+	if (pos.y < width / 2) 
+		pos.y = pos.y + width/2;
+	else 
+		pos.y = pos.y - width/2;
+		
 
+	// ulong seed = 0;
+	// PRNG prng = init(indexOutput, seed);
+	
 	// int samples = 32; 
 	// float3 color = (float3)(0, 0, 0);
-
-	// // if (pos.x < width / 2) { pos.x = width - pos.x; pos.y = height - pos.y; }
 
 
 	// for (size_t i = 0; i < samples; ++i)
@@ -235,24 +243,30 @@ __kernel void spectral_blur(__read_only image2d_t inputImage,
 
 
 	// 	//TODO: add some blur and random noise
-	// 	float x = (float)(pos.x) / width;
-	// 	float y = (float)(pos.y) / height;
+	// 	float x = (float)(pos.x + BLUR * (rand(&prng) - 0.5f)) / width;
+	// 	float y = (float)(pos.y + BLUR * (rand(&prng) - 0.5f)) / height;
+
+	// 	// float x = (float)(pos.x) / width;
+	// 	// float y = (float)(pos.y) / height;
 	// 	x -= 0.5f; y -= 0.5f;
 
-	// 	float xi = x * lambda / wavelength;
-	// 	float yi = y * lambda / wavelength;
+	// 	// float xi = x * lambda / wavelength;
+	// 	// float yi = y * lambda / wavelength;
 
-	// 	// float r = (rand(&prng) > 0.5f) ? 1.0f : -1.0f;
-	// 	// float angle = r * (1.0f - pow(rand(&prng), RINGING)) * RADIAN(ROTATE);
+	// 	float xi = x * wavelength / lambda;
+	// 	float yi = y * wavelength / lambda;
 
-	// 	// float rx = xi;
-	// 	// float ry = yi;
+	// 	float r = (rand(&prng) > 0.5f) ? 1.0f : -1.0f;
+	// 	float angle = r * (1.0f - pow(rand(&prng), RINGING)) * RADIAN(ROTATE);
 
-	// 	// xi = rx * cos(angle) + ry * sin(angle);
-	// 	// yi = ry * cos(angle) - rx * sin(angle);
+	// 	float rx = xi;
+	// 	float ry = yi;
 
-	// 	xi = xi + x;
-	// 	yi = yi + y;
+	// 	xi = rx * cos(angle) + ry * sin(angle);
+	// 	yi = ry * cos(angle) - rx * sin(angle);
+
+	// 	// xi = xi + x;
+	// 	// yi = yi + y;
 
 	// 	xi += 0.5f; yi += 0.5f;
 		
@@ -266,28 +280,32 @@ __kernel void spectral_blur(__read_only image2d_t inputImage,
 	// 	float Y = spectrumMapping[idx*3+1];
 	// 	float Z = spectrumMapping[idx*3+2];
 
-	// 	// XYZ to sRGB
-	// 	float R =  3.2404542*X - 1.5371385*Y - 0.4985314*Z;
-	// 	float G = -0.9692660*X + 1.8760108*Y + 0.0415560*Z;
-	// 	float B =  0.0556434*X - 0.2040259*Y + 1.0572252*Z;
-
 
 	// 	// TODO: clamp it if it's the case
 
-	// 	float3 rgb = {R, G, B};
+	// 	float3 xyz = {X, Y, Z};
 		
-	// 	color += rgb * intensity;
+	// 	color += xyz * intensity;
 	// }
-	
-	float4 color = read_imagef(inputImage, sampler, pos);
 
+	// // norm it 
+	// color = color / samples;
+
+	// // XYZ to sRGB
+	// float R =  3.2404542*color.x - 1.5371385*color.y - 0.4985314*color.z;
+	// float G = -0.9692660*color.x + 1.8760108*color.y + 0.0415560*color.z;
+	// float B =  0.0556434*color.x - 0.2040259*color.y + 1.0572252*color.z;
+
+
+	// outputRed[indexOutput]  = R;
+	// outputGreen[indexOutput]= G; 
+	// outputBlue[indexOutput] = B; 
+
+	// Just pass it forward without blur
+	float4 color = read_imagef(inputImage, sampler, pos);
 	outputRed[indexOutput] 	= color.x / normFactor;
 	outputGreen[indexOutput]= color.y / normFactor;
 	outputBlue[indexOutput] = color.z / normFactor;
-
-	// outputRed[indexOutput]  = color.x / samples;
-	// outputGreen[indexOutput]= color.y / samples; 
-	// outputBlue[indexOutput] = color.z / samples; 
 
 }
 

@@ -14,21 +14,8 @@
 #include "spectrumMap.h"
 
 
-// Auto adjust exposure with a key value proposed by \"Perceptual Effects in Real-time Tone Mapping\" by Krawczyk et al. 2005."
-
-
-/* 
-  A right-handed version of the QMatrix4x4.lookAt method
-*/
-QMatrix4x4 lookAtRH(QVector3D eye, QVector3D center, QVector3D up)
-{
-	QMatrix4x4 la;
-	la.lookAt(eye, center, up);
-	QMatrix4x4 inv;
-	inv(0, 0) = -1;
-	inv(2, 2) = -1;
-	return inv*la;
-}
+// Auto adjust exposure with a key value proposed in
+// "Perceptual Effects in Real-time Tone Mapping" by Krawczyk et al.
 
 TemporalGlareRenderer::TemporalGlareRenderer() :
 	m_imgWidth(0), m_imgHeight(0), m_maxPupilSize(9.0f), ncols(0), nrows(0), 
@@ -124,6 +111,8 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
     float* r = NULL;
     float* g = NULL;
     float* b = NULL;
+
+    float normFactor = 1.0f;
     try {
         
         // TODO Remove all additional buffers
@@ -368,7 +357,6 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         queue.finish();
 
         // TODO: Implement LOG norm 
-        float normFactor = 1.0f;
         for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
         {
             if(magnitude[i] > normFactor)
@@ -591,18 +579,9 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
 
         // DEBUG SECTION
         // NORM
-        float max = 1.0f;
 
-        // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
-        // {
-        //     float x = raw[2*i];
-        //     float y = raw[2*i + 1];
-        //     magnitude[i] = std::sqrt(x*x + y*y);
-        //     // data[i*4] = (unsigned char)(255 * std::sqrt(x*x + y*y));
-        //     // data[i*4 + 1] = 0; //(unsigned char)(255 * raw[i]);
-        //     // data[i*4 + 2] = 0; //(unsigned char)(255 * raw[i]);
-        //     // data[i*4 + 3] = 255;
-        // }
+
+        // // UNCOMMENT FOR COMPLEX APERTURE
         // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
         // {
         //     float x = m_complexAperture[2*i];
@@ -613,19 +592,19 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         //     // data[i*4 + 2] = 0; //(unsigned char)(255 * raw[i]);
         //     // data[i*4 + 3] = 255;
         // }
+
+
+        // // UNCOMMENT FOR MONOCHROMATIC PSF
         // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
         // {
-        //     if(magnitude[i] > max)
-        //         max = magnitude[i];
-        // }
-        // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
-        // {
-        //     data[i*4]     = (unsigned char)(255 * magnitude[i]/max);
-        //     data[i*4 + 1] = data[i*4]; //(unsigned char)(255 * raw[i]);
-        //     data[i*4 + 2] = data[i*4]; //(unsigned char)(255 * raw[i]);
+        //     data[i*4]     = (unsigned char)(255 * magnitude[i]/normFactor);
+        //     data[i*4 + 1] = data[i*4]; 
+        //     data[i*4 + 2] = data[i*4];
         //     data[i*4 + 3] = 255;
         // }
 
+
+        // UNCOMMENT FOR SPECTRAL PSF
         // for (int i = 0; i < m_imgHeight*m_imgWidth; i++)
         // {
         //     data[i*4]     = (unsigned char)(255 * r[i]);
@@ -749,13 +728,7 @@ void TemporalGlareRenderer::initOpenCL()
 
         queue = cl::CommandQueue(context, device);
 
-        // make viennacl get along with our business
-        // http://viennacl.sourceforge.net/doc/manual-custom-contexts.html
-        // viennacl::ocl::setup_context(0, context(), device(), queue());
-        // viennacl::ocl::switch_context(0);
-
         std::cout << "Existing context: " << context() << std::endl;
-        // std::cout << "ViennaCL uses context: " << viennacl::ocl::current_context().handle().get() << std::endl;
 		
 		// kernel = cl::Kernel(program, "lfrender");
         toneMapperKernel = cl::Kernel(program, "tm_reinhard_extended");
