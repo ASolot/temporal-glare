@@ -2,7 +2,7 @@ __constant const float PI = 3.14159265f;
 
 __constant const float RINGING = 1.25f;
 __constant const float ROTATE  = 2.75f;
-__constant const float BLUR    = 3.5f;
+__constant const float BLUR    = 1.5f;
 
 const sampler_t fsampler = CLK_ADDRESS_CLAMP | CLK_NORMALIZED_COORDS_TRUE |
                        CLK_FILTER_LINEAR;
@@ -176,8 +176,8 @@ __kernel void compute_magnitude_kernel(	__global float* inputImage,
 	int yp = get_global_id(1);
 	const int2 pos = {xp, yp};
 
-	int indexOutput = xp + yp * width; 
-	int indexInput = indexOutput * 2;
+	int indexInput = xp + yp * width; 
+	indexInput = indexInput * 2;
 
 	float K = lambda*lambda*distance*distance;
 
@@ -190,6 +190,19 @@ __kernel void compute_magnitude_kernel(	__global float* inputImage,
 	// fft normalisation
 	color = color / width / height;
 
+
+	// Apply what is known as FFTSHIFT
+	if (pos.x < width / 2) 
+		pos.x = pos.x + width/2;
+	else 
+		pos.x = pos.x - width/2;
+
+	if (pos.y < width / 2) 
+		pos.y = pos.y + width/2;
+	else 
+		pos.y = pos.y - width/2;
+
+	int indexOutput = pos.x + pos.y * width; 
 
 	if (indexOutput < width*height)
 		outputMono[indexOutput] = color;
@@ -216,96 +229,80 @@ __kernel void spectral_blur(__read_only image2d_t inputImage,
 
 	int indexOutput = pos.x + pos.y * width; 
 
-	// Apply what is known as FFTSHIFT
-
-	if (pos.x < width / 2) 
-		pos.x = pos.x + width/2;
-	else 
-		pos.x = pos.x - width/2;
-
-	if (pos.y < width / 2) 
-		pos.y = pos.y + width/2;
-	else 
-		pos.y = pos.y - width/2;
-		
-
-	// ulong seed = 0;
-	// PRNG prng = init(indexOutput, seed);
+	ulong seed = 0;
+	PRNG prng = init(indexOutput, seed);
 	
-	// int samples = 32; 
-	// float3 color = (float3)(0, 0, 0);
+	int samples = 32; 
+	float3 color = (float3)(0, 0, 0);
 
 
-	// for (size_t i = 0; i < samples; ++i)
-	// {
-    // 	float wavelength = (float)i / samples;
-	// 	wavelength = (380 + wavelength * 390); // from lambda_i formula 
+	for (size_t i = 0; i < samples; ++i)
+	{
+    	float wavelength = (float)i / (float)samples;
+		wavelength = (390 + wavelength * 400); // from lambda_i formula 
 
+		float x = (float)(pos.x) / width ;
+		float y = (float)(pos.y) / height;
+		x -= 0.5f; y -= 0.5f;
 
-	// 	//TODO: add some blur and random noise
-	// 	float x = (float)(pos.x + BLUR * (rand(&prng) - 0.5f)) / width;
-	// 	float y = (float)(pos.y + BLUR * (rand(&prng) - 0.5f)) / height;
+		float xi = x * (float)lambda / wavelength;
+		float yi = y * (float)lambda / wavelength;
 
-	// 	// float x = (float)(pos.x) / width;
-	// 	// float y = (float)(pos.y) / height;
-	// 	x -= 0.5f; y -= 0.5f;
+		xi += 0.5f; yi += 0.5f;
 
-	// 	// float xi = x * lambda / wavelength;
-	// 	// float yi = y * lambda / wavelength;
-
-	// 	float xi = x * wavelength / lambda;
-	// 	float yi = y * wavelength / lambda;
-
-	// 	float r = (rand(&prng) > 0.5f) ? 1.0f : -1.0f;
-	// 	float angle = r * (1.0f - pow(rand(&prng), RINGING)) * RADIAN(ROTATE);
-
-	// 	float rx = xi;
-	// 	float ry = yi;
-
-	// 	xi = rx * cos(angle) + ry * sin(angle);
-	// 	yi = ry * cos(angle) - rx * sin(angle);
-
-	// 	// xi = xi + x;
-	// 	// yi = yi + y;
-
-	// 	xi += 0.5f; yi += 0.5f;
+		float intensity;
 		
+		intensity = read_imagef(inputImage, fsampler, (float2)(xi, yi)).x;
+	 	// intensity = intensity / normFactor;
+
+		float fidx =  wavelength - 390;
+		int idx = (int)fidx;
 		
-	// 	float intensity = read_imagef(inputImage, fsampler, (float2)(xi, yi)).x;
-	//  	intensity = intensity / normFactor;
+		float X1 = spectrumMapping[idx*3];
+		float Y1 = spectrumMapping[idx*3+1];
+		float Z1 = spectrumMapping[idx*3+2];
+
+		idx = idx+1;
+		float X2 = spectrumMapping[idx*3];
+		float Y2 = spectrumMapping[idx*3+1];
+		float Z2 = spectrumMapping[idx*3+2];
+
+		float X = (X2 - X1) * (fidx - idx) + X1;
+		float Y = (Y2 - Y1) * (fidx - idx) + Y1;
+		float Z = (Z2 - Z1) * (fidx - idx) + Z1;
+
+		float3 xyz = {X, Y, Z};
 		
-	// 	int idx = (wavelength - 380);
-		
-	// 	float X = spectrumMapping[idx*3];
-	// 	float Y = spectrumMapping[idx*3+1];
-	// 	float Z = spectrumMapping[idx*3+2];
+		color += xyz * intensity;
+	}
 
+	// norm it 
+	color = color / samples;
+	color = color / 21;
 
-	// 	// TODO: clamp it if it's the case
+	// XYZ to sRGB
+	float R =  3.2404542*color.x - 1.5371385*color.y - 0.4985314*color.z;
+	float G = -0.9692660*color.x + 1.8760108*color.y + 0.0415560*color.z;
+	float B =  0.0556434*color.x - 0.2040259*color.y + 1.0572252*color.z;
 
-	// 	float3 xyz = {X, Y, Z};
-		
-	// 	color += xyz * intensity;
-	// }
+	if(R > 1.0f)
+		R = 1.0f;
 
-	// // norm it 
-	// color = color / samples;
+	if(G > 1.0f)
+		G = 1.0f;
 
-	// // XYZ to sRGB
-	// float R =  3.2404542*color.x - 1.5371385*color.y - 0.4985314*color.z;
-	// float G = -0.9692660*color.x + 1.8760108*color.y + 0.0415560*color.z;
-	// float B =  0.0556434*color.x - 0.2040259*color.y + 1.0572252*color.z;
+	if(B > 1.0f)
+		B = 1.0f;
 
+	outputRed[indexOutput]  = R;
+	outputGreen[indexOutput]= G; 
+	outputBlue[indexOutput] = B; 
 
-	// outputRed[indexOutput]  = R;
-	// outputGreen[indexOutput]= G; 
-	// outputBlue[indexOutput] = B; 
-
-	// Just pass it forward without blur
-	float4 color = read_imagef(inputImage, sampler, pos);
-	outputRed[indexOutput] 	= color.x / normFactor;
-	outputGreen[indexOutput]= color.y / normFactor;
-	outputBlue[indexOutput] = color.z / normFactor;
+	// // Just pass it forward without blur
+	// float4 color = read_imagef(inputImage, sampler, pos);
+	// outputRed[indexOutput] 	= color.x / normFactor;
+	// outputGreen[indexOutput]= color.y / normFactor;
+	// outputBlue[indexOutput] = color.z / normFactor;
 
 }
 
@@ -320,7 +317,6 @@ __kernel void conv_of_ffts(	__global const float* input2,
 
 	int index = (xp + yp*width)*2;
 
-
 	// x1 + y1*j = (x2 + y2*j)(x3 + y3*j)
 	//			 = x2*x3 + x2*y3*j + y2*x3*j -y2*y3
 	// x1 = x2*x3 - y2*y3
@@ -332,7 +328,7 @@ __kernel void conv_of_ffts(	__global const float* input2,
 
 	// y1            =     x2        *     y3          +     y2          *     x3 
 	output1[index+1] = input2[index] * input3[index+1] + input2[index+1] * input3[index];
-
+	// output1[index+1] = 0;
 
 }
 

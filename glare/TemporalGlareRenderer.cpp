@@ -392,7 +392,7 @@ void TemporalGlareRenderer::paint(QPainter *painter, QPaintEvent *event, int ela
         spectralBlurKernel.setArg(4, spectrumMapping); // lambda to RGB mapping -> TBD
         spectralBlurKernel.setArg(5, m_imgWidth);
         spectralBlurKernel.setArg(6, m_imgHeight);
-        spectralBlurKernel.setArg(7, m_lambda);
+        spectralBlurKernel.setArg(7, m_lambda*1000*1000);
         spectralBlurKernel.setArg(8, m_distance);
         spectralBlurKernel.setArg(9, normFactor);
 
