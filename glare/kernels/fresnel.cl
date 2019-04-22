@@ -7,103 +7,6 @@ __constant const float BLUR    = 1.5f;
 const sampler_t fsampler = CLK_ADDRESS_CLAMP | CLK_NORMALIZED_COORDS_TRUE |
                        CLK_FILTER_LINEAR;
 
-#define RADIAN(x) (x * (PI / 180.0f))
-
-#define ROUNDS 4
-
-void renew(ulong4 *state, ulong4 seed)
-{
-    /* Retain the PRNG's state. */
-    ulong4 block = *state + seed;
-
-    #pragma unroll
-    for (ulong t = 0; t < ROUNDS; t++)
-    {
-        /* Round 2t + 0 (×4 mix & permutation). */
-        block.lo += block.hi; block.hi = rotate(block.hi, (ulong2)(14, 16));
-        block.hi ^= block.lo; block = block.xywz;
-        block.lo += block.hi; block.hi = rotate(block.hi, (ulong2)(52, 57));
-        block.hi ^= block.lo; block = block.xywz;
-        block.lo += block.hi; block.hi = rotate(block.hi, (ulong2)(23, 40));
-        block.hi ^= block.lo; block = block.xywz;
-        block.lo += block.hi; block.hi = rotate(block.hi, (ulong2)( 5, 37));
-        block.hi ^= block.lo; block = block.xywz;
-
-        /* Key addition. */
-        block += seed;
-
-        /* Round 2t + 1 (×4 mix & permutation). */
-        block.lo += block.hi; block.hi = rotate(block.hi, (ulong2)(25, 33));
-        block.hi ^= block.lo; block = block.xywz;
-        block.lo += block.hi; block.hi = rotate(block.hi, (ulong2)(46, 12));
-        block.hi ^= block.lo; block = block.xywz;
-        block.lo += block.hi; block.hi = rotate(block.hi, (ulong2)(58, 22));
-        block.hi ^= block.lo; block = block.xywz;
-        block.lo += block.hi; block.hi = rotate(block.hi, (ulong2)(32, 32));
-        block.hi ^= block.lo; block = block.xywz;
-
-        /* Key addition. */
-        block += seed;
-    }
-
-    /* Feed-forward. */
-    *state ^= block;
-}
-
-/** @struct PRNG
-  * @brief PRNG internal state.
-  *
-  * This structure contains an instance of PRNG, which is enough information to
-  * generate essentially infinitely many unbiased pseudorandom numbers.
-**/
-typedef struct PRNG
-{
-    /** @brief The 256-bit internal state. **/
-    ulong4 state;
-    /** @brief An integer indicating how much of the state has been used. **/
-    uint pointer;
-    /** @brief A pointer to the PRNG's seed, common to all instances. **/
-    ulong4 seed;
-} PRNG;
-
-/** This function creates a new PRNG instance, and initializes it to zero.
-  * @param ID The ID to create the PRNG instance with, must be unique.
-  * @param seed A pointer to the PRNG's seed.
-  * @returns The PRNG instance, ready for use.
-**/
-PRNG init(ulong ID, ulong seed)
-{
-    PRNG instance;
-    instance.state = (ulong4)(ID);
-    instance.pointer = 0;
-    instance.seed = (ulong4)(seed, 0, 0, 0);
-    return instance;
-}
-
-/* This function will return a uniform pseudorandom number in [0..1). */
-/** This function returns a uniform pseudorandom number in [0..1).
-  * @param prng A pointer to the PRNG instance to use.
-  * @returns An unbiased uniform pseudorandom number between 0 and 1 exclusive.
-**/
-float rand(PRNG *prng)
-{
-    /* Do we need to renew? */
-    if (prng->pointer == 0)
-    {
-         renew(&prng->state, prng->seed);
-         prng->pointer = 4;
-    }
-
-    /* Return a uniform number in the desired interval. */
-    --prng->pointer;
-    if (prng->pointer == 3) return (float)(prng->state.w);
-    if (prng->pointer == 2) return (float)(prng->state.z);
-    if (prng->pointer == 1) return (float)(prng->state.y);
-    return (float)(prng->state.x);
-}
-
-
-
 // we are storing complex numbers in this matrix
 __kernel void generate_complex_exp( __global float* output,
                                		float lambda, 
@@ -119,13 +22,10 @@ __kernel void generate_complex_exp( __global float* output,
 	index = 2*index;
 
 	// center the coordinates to get a proper fresnel term
-	// float xp = xi;
-	// float yp = yi;
-
+	// divide by resolution which is in px/mm
 	float xp = ((float)xi/width - 0.5f ) / resolution / (1.0)  / d / lambda;	// mm 
 	float yp = ((float)yi/height- 0.5f ) / resolution / (1.0)  / d / lambda;	// mm
 
-	// rad / mm^2 * px^2 / px^2 * mm^2 => rad 
 	float value = PI / (d * lambda) * (xp*xp + yp*yp); // (d * d * lambda * lambda);
 
 	output[index]  	= cos(value);
@@ -228,13 +128,9 @@ __kernel void spectral_blur(__read_only image2d_t inputImage,
 	const int2 pos = {xp, yp};
 
 	int indexOutput = pos.x + pos.y * width; 
-
-	ulong seed = 0;
-	PRNG prng = init(indexOutput, seed);
 	
 	int samples = 32; 
 	float3 color = (float3)(0, 0, 0);
-
 
 	for (size_t i = 0; i < samples; ++i)
 	{
@@ -285,6 +181,7 @@ __kernel void spectral_blur(__read_only image2d_t inputImage,
 	float G = -0.9692660*color.x + 1.8760108*color.y + 0.0415560*color.z;
 	float B =  0.0556434*color.x - 0.2040259*color.y + 1.0572252*color.z;
 
+	// Clamping
 	if(R > 1.0f)
 		R = 1.0f;
 
@@ -297,6 +194,24 @@ __kernel void spectral_blur(__read_only image2d_t inputImage,
 	outputRed[indexOutput]  = R;
 	outputGreen[indexOutput]= G; 
 	outputBlue[indexOutput] = B; 
+
+	// // padding
+	// indexOutput = pos.x + width + pos.y * width * 2;
+	// outputRed[indexOutput]  = 0;
+	// outputGreen[indexOutput]= 0; 
+	// outputBlue[indexOutput] = 0; 
+
+	// indexOutput = pos.x + (pos.y + height) * width * 2;
+	// outputRed[indexOutput]  = 0;
+	// outputGreen[indexOutput]= 0; 
+	// outputBlue[indexOutput] = 0; 
+
+	// indexOutput = pos.x + width + (pos.y + height) * width * 2;
+	// outputRed[indexOutput]  = 0;
+	// outputGreen[indexOutput]= 0; 
+	// outputBlue[indexOutput] = 0; 
+
+
 
 	// // Just pass it forward without blur
 	// float4 color = read_imagef(inputImage, sampler, pos);

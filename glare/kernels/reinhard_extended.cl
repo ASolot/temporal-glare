@@ -14,7 +14,12 @@ __kernel void tm_reinhard_extended( __global const float* red_channel,
 {
     // get the current position
     const int2 pos = {get_global_id(0), get_global_id(1)};
+
+    // standard version indexing
     int index = pos.x + width * pos.y;
+    
+    // // Padded version indexing
+    // int index = 256 + pos.x + width * (pos.y + 256);
 
     // read corresponding pixels
     float r = red_channel[index];
