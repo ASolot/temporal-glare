@@ -51,6 +51,14 @@ Image::Image(const std::string &filename) {
     m_green = new float[m_width * m_height];
     m_blue  = new float[m_width * m_height];
 
+    m_redPadded   = new float[m_width * m_height * 4];
+    m_greenPadded = new float[m_width * m_height * 4];
+    m_bluePadded  = new float[m_width * m_height * 4];
+
+    memset(m_redPadded,   0, m_width * m_height * 4 * sizeof(float));
+    memset(m_greenPadded, 0, m_width * m_height * 4 * sizeof(float));
+    memset(m_bluePadded,  0, m_width * m_height * 4 * sizeof(float));
+
     int idxR = -1, idxG = -1, idxB = -1;
     for (int c = 0; c < img.num_channels; ++c) {
         if (strcmp(img.channel_names[c], "R") == 0) {
@@ -68,6 +76,7 @@ Image::Image(const std::string &filename) {
     for (int i = 0; i < m_height; ++i) {
         for (int j = 0; j < m_width; ++j) {
             int index = m_width * i + j;
+            int paddedIndex = 2*m_width * i + j;
 
             if (img.num_channels == 1) {
                 rgb = convert(img.images[0], index, img.pixel_types[0]);
@@ -80,6 +89,10 @@ Image::Image(const std::string &filename) {
                 m_green[index]    = convert(img.images[idxG], index, img.pixel_types[idxG]);
                 m_blue[index]     = convert(img.images[idxB], index, img.pixel_types[idxB]);
             }
+            
+            m_redPadded[paddedIndex]    = m_red[index];
+            m_greenPadded[paddedIndex]  = m_green[index];
+            m_bluePadded[paddedIndex]   = m_blue[index];
         }
     }
 
@@ -115,17 +128,7 @@ Image::Image(const std::string &filename) {
     // Formula taken from "Perceptual Effects in Real-time Tone Mapping" by Krawczyk et al.
     m_autoKeyValue = 1.03f - 2.f / (2.f + std::log10(m_logAverageLuminance + 1.f));
 
-    // m_rChannel = viennacl::matrix<float>(m_red, viennacl::MAIN_MEMORY, m_height, m_width);
-    // m_gChannel = viennacl::matrix<float>(m_green, viennacl::MAIN_MEMORY, m_height, m_width);
-    // m_bChannel = viennacl::matrix<float>(m_blue, viennacl::MAIN_MEMORY, m_height, m_width);
-
     FreeEXRImage(&img);
-
-
-    // compute the FFT transforms of the image only once, when loaded
-    // viennacl::fft(m_rChannel, m_rChannelFFT, -1.0f);
-    // viennacl::fft(m_gChannel, m_gChannelFFT, -1.0f);
-    // viennacl::fft(m_bChannel, m_bChannelFFT, -1.0f);
     
 }
 

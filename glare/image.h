@@ -10,21 +10,10 @@
 #include <iostream>
 #include <algorithm>
 
-// include FFT related routines
-
-// #include <viennacl/fft.hpp>
-// #include <viennacl/linalg/fft_operations.hpp>
-
-// #include <viennacl/vector.hpp>
-// #include <viennacl/matrix.hpp>
-
 class Image {
 public:
     explicit Image(const std::string &filename);
     ~Image();
-
-    // float4 *getData() { return (float4 *)m_pixels; }
-
 
     // float* get_rChannelFFT()  { return m_redFFT;}
     // float* get_gChannelFFT()  { return m_greenFFT;}
@@ -35,20 +24,6 @@ public:
     float* get_bChannel()  { return m_blue;}
 
     // cv::Mat get_imgData() {return channels;}
-
-    // static void fromLayersToRGBA(unsigned char* data,
-    //                     viennacl::matrix<float>& red,
-    //                     viennacl::matrix<float>& green,
-    //                     viennacl::matrix<float>& blue, 
-    //                     int width,
-    //                     int height);
-
-    // static void fromLayersToRGBAf(float* data,
-    //                     viennacl::matrix<float>& red,
-    //                     viennacl::matrix<float>& green,
-    //                     viennacl::matrix<float>& blue, 
-    //                     int width,
-    //                     int height);
 
     static void fromLayersToRGBA(unsigned char* data,
                         float* red,
@@ -77,22 +52,14 @@ public:
     // TODO: build PNG saving function 
 
 private:
-    
-    // viennacl::matrix<float> m_rChannel;
-    // viennacl::matrix<float> m_gChannel;
-    // viennacl::matrix<float> m_bChannel;
-
-    // viennacl::matrix<float> m_rChannelFFT;
-    // viennacl::matrix<float> m_gChannelFFT;
-    // viennacl::matrix<float> m_bChannelFFT;
 
     float* m_red;
     float* m_green;
     float* m_blue;
 
-    // float* m_redFFT;
-    // float* m_greenFFT;
-    // float* m_blueFFT;
+    float* m_redPadded;
+    float* m_greenPadded;
+    float* m_bluePadded;
 
     int m_width;
     int m_height;
